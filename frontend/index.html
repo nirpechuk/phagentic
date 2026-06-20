@@ -275,9 +275,10 @@
           </div>
         </div>
         <div style="flex:1; min-height:0; overflow-y:auto; padding:10px 18px 16px; display:flex; flex-direction:column; gap:13px;">
-          <div style="display:flex; justify-content:space-around; opacity:{{ knobsOpacity }};">
+          <div style="font-family:'JetBrains Mono',monospace; font-size:11px; letter-spacing:.14em; color:rgba(46,43,36,.5);">TUNING · stirrer · dose · trigger</div>
+          <div style="display:flex; justify-content:space-around;">
             <div style="display:flex; flex-direction:column; align-items:center; gap:6px;">
-              <span style="font-family:'JetBrains Mono',monospace; font-size:12px; color:rgba(46,43,36,.6);">STIRRER</span>
+              <span style="font-family:'JetBrains Mono',monospace; font-size:12px; color:rgba(46,43,36,.6); text-align:center;">{{ stirName }}<br><span style="opacity:.5; font-size:9.5px;">PWM · {{ stirPinTxt }}</span></span>
               <div onMouseDown="{{ knobCool }}" title="drag up / down" style="position:relative; width:36px; height:100px; border-radius:12px; cursor:ns-resize; overflow:hidden; background:linear-gradient(180deg, rgba(255,255,255,.42), rgba(224,216,200,.22)); border:1px solid rgba(59,55,47,.22); box-shadow:inset 0 2px 5px rgba(255,255,255,.7), 0 6px 14px -7px rgba(70,60,48,.45);">
                 <div style="position:absolute; inset:0; background:repeating-linear-gradient(0deg, rgba(59,55,47,.07) 0 1px, transparent 1px 13px); pointer-events:none;"></div>
                 <div style="position:absolute; left:0; right:0; bottom:0; height:{{ stirFill }}; background:linear-gradient(180deg, #5f7fb0, #6f8466); box-shadow:0 -2px 16px rgba(95,127,176,.55); transition:height .1s ease;"></div>
@@ -286,7 +287,7 @@
               <input type="number" step="0.05" value="{{ coolVal }}" onMouseDown="{{ stopProp }}" onInput="{{ setCool }}" style="width:62px; text-align:center; background:rgba(255,255,255,.45); border:1px solid rgba(59,55,47,.2); border-radius:7px; padding:4px; font-family:'JetBrains Mono',monospace; font-size:13px; color:#2e2b24; outline:none;" />
             </div>
             <div style="display:flex; flex-direction:column; align-items:center; gap:6px;">
-              <span style="font-family:'JetBrains Mono',monospace; font-size:12px; color:rgba(46,43,36,.6);">GLUCOSE ms</span>
+              <span style="font-family:'JetBrains Mono',monospace; font-size:12px; color:rgba(46,43,36,.6); text-align:center;">DOSE ms<br><span style="opacity:.5; font-size:9.5px;">glucose pulse</span></span>
               <div onMouseDown="{{ knobMoi }}" title="drag up / down" style="position:relative; width:36px; height:100px; border-radius:12px; cursor:ns-resize; overflow:hidden; background:linear-gradient(180deg, rgba(255,255,255,.42), rgba(224,216,200,.22)); border:1px solid rgba(59,55,47,.22); box-shadow:inset 0 2px 5px rgba(255,255,255,.7), 0 6px 14px -7px rgba(70,60,48,.45);">
                 <div style="position:absolute; inset:0; background:repeating-linear-gradient(0deg, rgba(59,55,47,.07) 0 1px, transparent 1px 13px); pointer-events:none;"></div>
                 <div style="position:absolute; left:0; right:0; bottom:0; height:{{ gluFill }}; background:linear-gradient(180deg, #5f7fb0, #6f8466); box-shadow:0 -2px 16px rgba(95,127,176,.55); transition:height .1s ease;"></div>
@@ -295,7 +296,7 @@
               <input type="number" step="1" value="{{ moiVal }}" onMouseDown="{{ stopProp }}" onInput="{{ setMoi }}" style="width:62px; text-align:center; background:rgba(255,255,255,.45); border:1px solid rgba(59,55,47,.2); border-radius:7px; padding:4px; font-family:'JetBrains Mono',monospace; font-size:13px; color:#2e2b24; outline:none;" />
             </div>
             <div style="display:flex; flex-direction:column; align-items:center; gap:6px;">
-              <span style="font-family:'JetBrains Mono',monospace; font-size:12px; color:rgba(46,43,36,.6);">PULSE @ amp%</span>
+              <span style="font-family:'JetBrains Mono',monospace; font-size:12px; color:rgba(46,43,36,.6); text-align:center;">AUTO @ %<br><span style="opacity:.5; font-size:9.5px;">amp trigger</span></span>
               <div onMouseDown="{{ knobThr }}" title="drag up / down" style="position:relative; width:36px; height:100px; border-radius:12px; cursor:ns-resize; overflow:hidden; background:linear-gradient(180deg, rgba(255,255,255,.42), rgba(224,216,200,.22)); border:1px solid rgba(59,55,47,.22); box-shadow:inset 0 2px 5px rgba(255,255,255,.7), 0 6px 14px -7px rgba(70,60,48,.45);">
                 <div style="position:absolute; inset:0; background:repeating-linear-gradient(0deg, rgba(59,55,47,.07) 0 1px, transparent 1px 13px); pointer-events:none;"></div>
                 <div style="position:absolute; left:0; right:0; bottom:0; height:{{ ampFill }}; background:linear-gradient(180deg, #5f7fb0, #6f8466); box-shadow:0 -2px 16px rgba(95,127,176,.55); transition:height .1s ease;"></div>
@@ -304,17 +305,44 @@
               <input type="number" step="1" value="{{ thrVal }}" onMouseDown="{{ stopProp }}" onInput="{{ setThr }}" style="width:62px; text-align:center; background:rgba(255,255,255,.45); border:1px solid rgba(59,55,47,.2); border-radius:7px; padding:4px; font-family:'JetBrains Mono',monospace; font-size:13px; color:#2e2b24; outline:none;" />
             </div>
           </div>
-          <div style="border-top:1px solid rgba(59,55,47,.12); padding-top:11px;">
-            <div style="font-family:'JetBrains Mono',monospace; font-size:12px; color:rgba(46,43,36,.55); margin-bottom:8px;">ACTUATORS</div>
-            <div style="display:flex; align-items:center; gap:10px; flex-wrap:wrap;">
-              <button onMouseDown="{{ stopProp }}" onClick="{{ pulseNaoh }}" style="cursor:pointer; border:1px solid rgba(148,118,47,.4); border-radius:8px; padding:6px 12px; font-family:'JetBrains Mono',monospace; font-size:13px; background:{{ naohBg }}; color:{{ naohColor }};" style-hover="border-color:#94762f;">NaOH pulse</button>
-              <div style="display:flex; align-items:center; gap:7px; flex:1; min-width:130px;">
-                <span style="font-family:'JetBrains Mono',monospace; font-size:12px; color:rgba(46,43,36,.55);">LIGHT</span>
-                <input type="range" min="0" max="255" value="{{ lightVal }}" onMouseDown="{{ stopProp }}" onInput="{{ setLight }}" style="flex:1; accent-color:#6f8466; cursor:pointer;" />
-                <span style="font-family:'JetBrains Mono',monospace; font-size:12.5px; color:rgba(46,43,36,.7); width:38px; text-align:right;">{{ lightPct }}</span>
+          <div style="border-top:1px solid rgba(59,55,47,.12); padding-top:12px;">
+            <div style="font-family:'JetBrains Mono',monospace; font-size:11px; letter-spacing:.14em; color:rgba(46,43,36,.5); margin-bottom:11px;">DIRECT CONTROL · pumps &amp; light (live hardware)</div>
+            <div style="display:flex; flex-direction:column; gap:10px;">
+              <div style="display:flex; align-items:center; gap:11px;">
+                <span style="flex:none; width:9px; height:9px; border-radius:50%; background:{{ gluDot }}; box-shadow:0 0 9px {{ gluDot }};"></span>
+                <div style="flex:1; min-width:0;">
+                  <div style="font-family:'JetBrains Mono',monospace; font-size:13.5px; color:#2e2b24;">{{ gluName }}</div>
+                  <div style="font-family:'JetBrains Mono',monospace; font-size:10px; color:rgba(46,43,36,.45);">digital · {{ gluPinTxt }}</div>
+                </div>
+                <div style="display:flex; font-family:'JetBrains Mono',monospace; font-size:12.5px; border:1px solid rgba(59,55,47,.2); border-radius:9px; overflow:hidden; box-shadow:inset 0 1px 2px rgba(255,255,255,.6);">
+                  <button onMouseDown="{{ stopProp }}" onClick="{{ gluSetOff }}" style="cursor:pointer; border:none; padding:7px 15px; font:inherit; background:{{ gluOffBg }}; color:{{ gluOffColor }};">OFF</button>
+                  <button onMouseDown="{{ stopProp }}" onClick="{{ gluSetOn }}" style="cursor:pointer; border:none; padding:7px 15px; font:inherit; background:{{ gluOnBg }}; color:{{ gluOnColor }};">ON</button>
+                </div>
+                <button onMouseDown="{{ stopProp }}" onClick="{{ pulseGlucose }}" title="momentary pulse" style="cursor:pointer; border:1px solid rgba(95,127,176,.4); border-radius:9px; padding:7px 13px; font-family:'JetBrains Mono',monospace; font-size:12.5px; color:#4a6cd0; background:rgba(95,127,176,.12);" style-hover="background:rgba(95,127,176,.22);">pulse</button>
               </div>
-              <button onMouseDown="{{ stopProp }}" onClick="{{ recalibrateSensor }}" title="Aim the sensor at white first" style="cursor:pointer; border:1px solid rgba(59,55,47,.22); border-radius:8px; padding:6px 12px; font-family:'JetBrains Mono',monospace; font-size:13px; background:rgba(255,255,255,.4); color:rgba(46,43,36,.8);" style-hover="border-color:rgba(59,55,47,.4);">recalibrate {{ calibTxt }}</button>
+              <div style="display:flex; align-items:center; gap:11px;">
+                <span style="flex:none; width:9px; height:9px; border-radius:50%; background:{{ naohDot }}; box-shadow:0 0 9px {{ naohDot }};"></span>
+                <div style="flex:1; min-width:0;">
+                  <div style="font-family:'JetBrains Mono',monospace; font-size:13.5px; color:#2e2b24;">{{ naohName }}</div>
+                  <div style="font-family:'JetBrains Mono',monospace; font-size:10px; color:rgba(46,43,36,.45);">digital · {{ naohPinTxt }}</div>
+                </div>
+                <div style="display:flex; font-family:'JetBrains Mono',monospace; font-size:12.5px; border:1px solid rgba(59,55,47,.2); border-radius:9px; overflow:hidden; box-shadow:inset 0 1px 2px rgba(255,255,255,.6);">
+                  <button onMouseDown="{{ stopProp }}" onClick="{{ naohSetOff }}" style="cursor:pointer; border:none; padding:7px 15px; font:inherit; background:{{ naohOffBg }}; color:{{ naohOffColor }};">OFF</button>
+                  <button onMouseDown="{{ stopProp }}" onClick="{{ naohSetOn }}" style="cursor:pointer; border:none; padding:7px 15px; font:inherit; background:{{ naohOnBg }}; color:{{ naohOnColor }};">ON</button>
+                </div>
+                <button onMouseDown="{{ stopProp }}" onClick="{{ pulseNaoh }}" title="momentary pulse" style="cursor:pointer; border:1px solid rgba(148,118,47,.4); border-radius:9px; padding:7px 13px; font-family:'JetBrains Mono',monospace; font-size:12.5px; color:#94762f; background:rgba(148,118,47,.1);" style-hover="background:rgba(148,118,47,.2);">pulse</button>
+              </div>
+              <div style="display:flex; align-items:center; gap:11px;">
+                <span style="flex:none; width:9px; height:9px; border-radius:2px; background:#e7c96b; box-shadow:0 0 9px rgba(231,201,107,.6);"></span>
+                <div style="flex:1; min-width:0;">
+                  <div style="font-family:'JetBrains Mono',monospace; font-size:13.5px; color:#2e2b24;">{{ lightName }}</div>
+                  <div style="font-family:'JetBrains Mono',monospace; font-size:10px; color:rgba(46,43,36,.45);">PWM · {{ lightPinTxt }}</div>
+                </div>
+                <input type="range" min="0" max="255" value="{{ lightVal }}" onMouseDown="{{ stopProp }}" onInput="{{ setLight }}" style="flex:none; width:128px; accent-color:#b9923a; cursor:pointer;" />
+                <span style="font-family:'JetBrains Mono',monospace; font-size:12.5px; color:rgba(46,43,36,.7); width:40px; text-align:right;">{{ lightPct }}</span>
+              </div>
             </div>
+            <button onMouseDown="{{ stopProp }}" onClick="{{ recalibrateSensor }}" title="Aim the sensor at white first" style="cursor:pointer; width:100%; margin-top:11px; border:1px solid rgba(59,55,47,.22); border-radius:9px; padding:8px; font-family:'JetBrains Mono',monospace; font-size:12.5px; background:rgba(255,255,255,.4); color:rgba(46,43,36,.8);" style-hover="border-color:rgba(59,55,47,.4);">recalibrate sensor (aim at white) {{ calibTxt }}</button>
           </div>
           <div style="border-top:1px solid rgba(59,55,47,.12); padding-top:11px;">
             <div style="font-family:'JetBrains Mono',monospace; font-size:12px; color:rgba(46,43,36,.55); margin-bottom:8px;">PREDICTED OUTCOME · world model</div>
@@ -585,17 +613,18 @@ class Component extends DCLogic {
     this._size={ reactors:[350,420], swatch:[350,460], world:[620,420], narr:[360,420], manual:[540,470], calc:[420,480], ask:[400,420], runs:[350,390] };
     this.dragH={}; this.closeH={}; this.openH={}; this.resizeH={};
     this.panelIds.forEach(id=>{ this.dragH[id]=this.startDrag(id); this.closeH[id]=()=>this.closePanel(id); this.openH[id]=()=>this.openPanel(id); this.resizeH[id]=this.startResize(id); });
-    this.knobCool=this.startKnob('stirrer',0,255,0.8); this.knobMoi=this.startKnob('glucoseDoseMs',50,2000,4); this.knobThr=this.startKnob('ampThreshold',5,95,0.3);
+    this.knobCool=this.startKnob('stirrer',0,255,0.8); this.knobMoi=this.startKnob('glucoseDoseMs',50,2000,4); this.knobThr=this.startKnob('ampThreshold',5,95,0.3); this.knobLight=this.startKnob('light',0,255,0.8);
     this._zc=this.panelIds.length;
     const mk=(open,id)=>({x:20,y:20,w:this._size[id][0],h:this._size[id][1],open, zi:this.panelIds.indexOf(id)+1});
     this._be=null; this._ble=null; this._bleName='Bioreactor';
-    this._pins={stirrer:23, glucose:19, naoh:18, light:25};
     // Mirrors hub/config.json — used to configure pins when connecting directly over BLE.
-    this._defaultConfig={ mosfets:[{name:'NaOH Pump',pin:18,mode:'digital'},{name:'Glucose Pump',pin:19,mode:'digital'},{name:'Stirrer',pin:23,mode:'pwm'}], sensor_light:{pin:25} };
+    this._defaultConfig={ mosfets:[{name:'Glucose Pump',pin:18,mode:'digital'},{name:'NaOH Pump',pin:19,mode:'digital'},{name:'Stirrer',pin:23,mode:'pwm'}], sensor_light:{pin:25} };
+    this._pins=this.pinsFromConfig(this._defaultConfig);   // sets this._pins + this._names from config
     this.state={
       onLanding:true, running:true, mode:'auto', bumped:false, uiZoom:1.0, live:false,
       // setpoints (UI-owned; the in-browser control loop reads these)
       stirrer:150, glucoseDoseMs:500, ampThreshold:40, targetHalfPeriod:25, solveMode:'period', light:255, calibTxt:'', source:'sim',
+      glucoseOn:false, naohOn:false,
       settingsOpen:false, bleName:'Bioreactor', bleStatus:'', bleKnown:0,
       // measured / derived (flushed from the ingest loop ~10Hz)
       t:0, runIndex:1, blue:0.5, rgb:[228,226,214], lux:0,
@@ -633,16 +662,21 @@ class Component extends DCLogic {
     be.onStatus=(up)=>{
       if(this._ble&&this._ble.connected) return;                            // BLE takes precedence
       this.setState({ live:up, source:up?'hub':'sim' });
-      if(up){ if(this.sim){ clearInterval(this.sim); this.sim=null; } }     // hardware drives the stream
+      if(up){ if(this.sim){ clearInterval(this.sim); this.sim=null; } setTimeout(()=>this.syncOutputs(),200); }  // hardware drives the stream
       else { if(!this.sim){ this.sim=setInterval(()=>this.tick(),80); } }   // fall back to simulation
     };
     be.onSensor=(d)=>{ if(this._ble&&this._ble.connected) return; if(d&&typeof d.r==='number') this.ingest(d.r,d.g,d.b,(d.lux!=null?d.lux:(d.c||0)),this.now()); };
     be.connect();
   }
+  // Resolve which pin each role lives on FROM THE CONFIG, by device name — so the
+  // UI follows the actual hardware wiring (pins can move in config.json). Also
+  // captures the real display names so the controls read like the bioreactor.
   pinsFromConfig(cfg){
-    const p={stirrer:23, glucose:19, naoh:18, light:25};
-    (cfg.mosfets||[]).forEach(m=>{ const n=(m.name||'').toLowerCase(); if(/stir/.test(n)) p.stirrer=m.pin; else if(/gluc/.test(n)) p.glucose=m.pin; else if(/na.?oh|chlor/.test(n)) p.naoh=m.pin; });
-    if(cfg.sensor_light&&cfg.sensor_light.pin!=null) p.light=cfg.sensor_light.pin;
+    const p={stirrer:23, glucose:18, naoh:19, light:25};
+    const nm={stirrer:'Stirrer', glucose:'Glucose Pump', naoh:'NaOH Pump', light:'Sensor Light'};
+    (cfg.mosfets||[]).forEach(m=>{ const n=(m.name||'').toLowerCase(); if(/stir/.test(n)){ p.stirrer=m.pin; nm.stirrer=m.name; } else if(/gluc/.test(n)){ p.glucose=m.pin; nm.glucose=m.name; } else if(/na.?oh|chlor/.test(n)){ p.naoh=m.pin; nm.naoh=m.name; } });
+    if(cfg.sensor_light&&cfg.sensor_light.pin!=null){ p.light=cfg.sensor_light.pin; if(cfg.sensor_light.name) nm.light=cfg.sensor_light.name; }
+    this._names=nm;
     return p;
   }
   resolvePins(cfg){ this._pins=this.pinsFromConfig(cfg); }
@@ -667,7 +701,7 @@ class Component extends DCLogic {
     const ok=await ble.ping(); if(!ok){ this.pushNarr('Connected, but no reply to ping — is the firmware flashed?','warn'); return; }
     this._pins=this.pinsFromConfig(this._defaultConfig);
     await ble.configure(this.pinMap(this._defaultConfig));
-    await ble.setPwm(this._pins.light, this.state.light);     // light on for the sensor
+    this.syncOutputs();                                       // push current outputs (light, stirrer, pumps)
     ble.startStream(20);
     this.pushNarr('Bluetooth live — streaming colour at 20 Hz. Recalibrate against white for true colour.','win');
   };
@@ -720,8 +754,6 @@ class Component extends DCLogic {
     this._hist.push({t:+t.toFixed(2), blue:+blue.toFixed(4), mid:0.5}); if(this._hist.length>600) this._hist.shift();
     if(this._cycles>=1) this.sayOnce('first','First full cycle complete — oscillation established.','win');
     if(this._amp>=0.6) this.sayOnce('strong','Strong swing — amplitude '+this._amp.toFixed(2)+'.','info');
-    if(this._glucoseActive&&now>=this._pulseUntil){ this._glucoseActive=false; if(this.state.live) this.cmdSet('set_digital','glucose',0); }
-    if(this._naohActive&&now>=this._naohUntil){ this._naohActive=false; if(this.state.live) this.cmdSet('set_digital','naoh',0); }
     if(this.state.mode==='manual') this._stirrerOut=Math.round(this.state.stirrer);
     else this.control(now,t);
     if(this.state.live){ this._sendAcc++; if(this._sendAcc>=4){ this._sendAcc=0; this.cmdSet('set_pwm','stirrer',this._stirrerOut); } }
@@ -745,13 +777,23 @@ class Component extends DCLogic {
   control(now,t){
     const hp=this._halfP;
     if(hp>0){ const err=this.state.targetHalfPeriod-hp; this._piI=Math.max(-80,Math.min(80,this._piI+err*0.02)); this._stirrerOut=Math.round(Math.max(40,Math.min(255,150-err*4-this._piI))); }
-    if(this._cycles!==this._lastCycleSeen){ this._lastCycleSeen=this._cycles; if(this._amp<this.state.ampThreshold/100) this._lowAmp++; else this._lowAmp=0; if(this._lowAmp>=2){ this.fireGlucose(now,t,true); this._lowAmp=0; } }
+    if(this._cycles!==this._lastCycleSeen){ this._lastCycleSeen=this._cycles; if(this._amp<this.state.ampThreshold/100) this._lowAmp++; else this._lowAmp=0; if(this._lowAmp>=2){ this.pulseDigital('glucose',true); this._lowAmp=0; } }
   }
-  fireGlucose(now,t,auto){
-    this._glucoseActive=true; this._pulseUntil=now+this.state.glucoseDoseMs/1000; this._glucosePulses++; this._lastPulseT=+t.toFixed(1);
-    if(this.state.live) this.cmdSet('set_digital','glucose',1);
-    this.pushNarr((auto?'Amplitude decayed — auto glucose pulse.':'Manual glucose pulse.')+' Pulse #'+this._glucosePulses+', '+this.state.glucoseDoseMs+' ms.','warn');
+  // ---- direct device control (mirrors the hub's per-device model) ------------
+  // Hard ON/OFF for a digital pump — stays until you turn it off.
+  setDigitalOut(role,on){ this['_'+role+'Active']=on; this.cmdSet('set_digital',role,on?1:0); this.setState({ mode:'manual', [role+'On']:on }); this.pushNarr((this._names[role]||role)+(on?' — ON (held)':' — OFF'), on?'warn':'info'); }
+  // Momentary pulse for a digital pump — fires, then auto-off after the dose,
+  // unless it's being held ON.
+  pulseDigital(role,auto){
+    const ms=(role==='glucose'?this.state.glucoseDoseMs:1000);
+    this['_'+role+'Active']=true; this.cmdSet('set_digital',role,1);
+    if(role==='glucose'){ this._glucosePulses++; this._lastPulseT=+Math.max(0,this.now()-this._t0).toFixed(1); }
+    this.pushNarr((auto?'Amplitude decayed — auto ':'')+'pulse '+(this._names[role]||role)+' · '+ms+' ms', 'warn');
+    clearTimeout(this['_'+role+'PulseT']);
+    this['_'+role+'PulseT']=setTimeout(()=>{ if(!this.state[role+'On']){ this['_'+role+'Active']=false; this.cmdSet('set_digital',role,0); } }, ms);
   }
+  // Push every current output to the hardware on (re)connect, so it matches the UI.
+  syncOutputs(){ this.cmdSet('set_pwm','stirrer',this._stirrerOut); this.cmdSet('set_pwm','light',Math.round(this.state.light)); this.cmdSet('set_digital','glucose',this.state.glucoseOn?1:0); this.cmdSet('set_digital','naoh',this.state.naohOn?1:0); }
   // Offline simulator: a Blue Bottle limit-cycle reacting to the actuator outputs.
   tick(){
     if(!this.state.running) return;
@@ -936,8 +978,8 @@ class Component extends DCLogic {
     e.preventDefault(); e.stopPropagation();
     const startY=e.clientY, startVal=this.state[param], round=(param!=='ampThreshold');
     this.setState({ mode:'manual' });
-    const move=(ev)=>{ let v=startVal+(startY-ev.clientY)*scale; v=Math.max(min,Math.min(max,v)); if(round) v=Math.round(v); this.setState({ [param]:v }); if(param==='stirrer'){ this._stirrerOut=Math.round(v); if(this.state.live) this.cmdSet('set_pwm','stirrer',this._stirrerOut); } };
-    const up=()=>{ window.removeEventListener('mousemove',move); window.removeEventListener('mouseup',up); document.body.style.userSelect=''; if(param==='stirrer'&&this.state.live) this.cmdSet('set_pwm','stirrer',Math.round(this.state[param])); };
+    const move=(ev)=>{ let v=startVal+(startY-ev.clientY)*scale; v=Math.max(min,Math.min(max,v)); if(round) v=Math.round(v); this.setState({ [param]:v }); if(param==='stirrer'){ this._stirrerOut=Math.round(v); this.cmdSet('set_pwm','stirrer',this._stirrerOut); } else if(param==='light'){ this.cmdSet('set_pwm','light',Math.round(v)); } };
+    const up=()=>{ window.removeEventListener('mousemove',move); window.removeEventListener('mouseup',up); document.body.style.userSelect=''; if(param==='stirrer') this.cmdSet('set_pwm','stirrer',Math.round(this.state[param])); else if(param==='light') this.cmdSet('set_pwm','light',Math.round(this.state[param])); };
     document.body.style.userSelect='none';
     window.addEventListener('mousemove',move); window.addEventListener('mouseup',up);
   }; }
@@ -970,7 +1012,10 @@ class Component extends DCLogic {
   clearEq=(id)=>this.setState(s=>({ eq:{...s.eq, [id]:{}} }));
   setTempC=(e)=>{ const c=e.target.value, n=parseFloat(c); this.setState(s=>({ eq:{...s.eq, temp:{ c, f:(c===''||isNaN(n))?'':String(Math.round((n*9/5+32)*100)/100)} } })); };
   setTempF=(e)=>{ const f=e.target.value, n=parseFloat(f); this.setState(s=>({ eq:{...s.eq, temp:{ f, c:(f===''||isNaN(n))?'':String(Math.round(((n-32)*5/9)*100)/100)} } })); };
-  manualFire=()=>{ const now=this.now(); this.fireGlucose(now, Math.max(0,now-this._t0), false); };
+  manualFire=()=>this.pulseDigital('glucose');
+  pulseGlucose=()=>this.pulseDigital('glucose');
+  gluSetOn=()=>this.setDigitalOut('glucose',true);   gluSetOff=()=>this.setDigitalOut('glucose',false);
+  naohSetOn=()=>this.setDigitalOut('naoh',true);      naohSetOff=()=>this.setDigitalOut('naoh',false);
   recolorRun(i){ if(i>=0&&i<this._runs.length){ const idx=this.runPalette.indexOf(this._runs[i].color); this._runs[i]={...this._runs[i], color:this.runPalette[(idx+1)%this.runPalette.length]}; this.flush(); } }
 
   setCool=(e)=>{ const v=parseFloat(e.target.value); if(!isNaN(v)){ const cv=Math.max(0,Math.min(255,Math.round(v))); this._stirrerOut=cv; if(this.state.live) this.cmdSet('set_pwm','stirrer',cv); this.setState({ mode:'manual', stirrer:cv }); } };
@@ -981,7 +1026,7 @@ class Component extends DCLogic {
   setSolveEnergy=()=>this.setState({ solveMode:'stir' });
   applySolve=()=>{ const b=this.solve(this.state.targetHalfPeriod, this.state.solveMode); this._stirrerOut=b.stir; if(this.state.live) this.cmdSet('set_pwm','stirrer',b.stir); this.setState({ mode:'manual', stirrer:b.stir }); };
   // NaOH / Chloride pump — manual alkalinity top-up (digital pulse, ~1s).
-  pulseNaoh=()=>{ const now=this.now(); this._naohActive=true; this._naohUntil=now+1.0; if(this.state.live) this.cmdSet('set_digital','naoh',1); this.pushNarr('NaOH top-up pulse — restoring alkalinity.','warn'); };
+  pulseNaoh=()=>this.pulseDigital('naoh');
   // Sensor light brightness (PWM) — illuminates the vessel for the TCS34725.
   setLight=(e)=>{ const v=parseFloat(e.target.value); if(!isNaN(v)){ const lv=Math.max(0,Math.min(255,Math.round(v))); if(this.state.live) this.cmdSet('set_pwm','light',lv); this.setState({ light:lv }); } };
   // White-balance recalibration on the hub (aim sensor at white first).
@@ -1106,8 +1151,14 @@ class Component extends DCLogic {
       rewardTxt:String(s.cycles), lastYieldTxt:s.period?('~'+s.period.toFixed(0)+'s'):'—', narrFeed,
       autoSegBg:s.mode==='auto'?'#6f8466':'transparent', autoSegColor:s.mode==='auto'?'#fbf8f2':'rgba(46,43,36,.7)', manSegBg:s.mode==='manual'?'#94762f':'transparent', manSegColor:s.mode==='manual'?'#fbf8f2':'rgba(46,43,36,.7)',
       setAuto:this.setAuto, setManual:this.setManual, knobsOpacity:s.mode==='manual'?'1':'.5',
-      knobCool:this.knobCool, knobMoi:this.knobMoi, knobThr:this.knobThr,
-      stirFill:(s.stirrer/255*100).toFixed(0)+'%', gluFill:((s.glucoseDoseMs-50)/1950*100).toFixed(0)+'%', ampFill:((s.ampThreshold-5)/90*100).toFixed(0)+'%',
+      knobCool:this.knobCool, knobMoi:this.knobMoi, knobThr:this.knobThr, knobLight:this.knobLight,
+      stirFill:(s.stirrer/255*100).toFixed(0)+'%', gluFill:((s.glucoseDoseMs-50)/1950*100).toFixed(0)+'%', ampFill:((s.ampThreshold-5)/90*100).toFixed(0)+'%', lightFill:(s.light/255*100).toFixed(0)+'%',
+      manualOn:s.mode==='manual',
+      gluSetOn:this.gluSetOn, gluSetOff:this.gluSetOff, pulseGlucose:this.pulseGlucose, naohSetOn:this.naohSetOn, naohSetOff:this.naohSetOff,
+      gluOnBg:s.glucoseOn?'#5f7fb0':'transparent', gluOnColor:s.glucoseOn?'#fff':'rgba(46,43,36,.55)', gluOffBg:s.glucoseOn?'transparent':'rgba(59,55,47,.14)', gluOffColor:s.glucoseOn?'rgba(46,43,36,.55)':'#2e2b24', gluDot:s.glucoseActive?'#5f7fb0':'rgba(46,43,36,.2)',
+      naohOnBg:s.naohOn?'#94762f':'transparent', naohOnColor:s.naohOn?'#fff':'rgba(46,43,36,.55)', naohOffBg:s.naohOn?'transparent':'rgba(59,55,47,.14)', naohOffColor:s.naohOn?'rgba(46,43,36,.55)':'#2e2b24', naohDot:s.naohActive?'#94762f':'rgba(46,43,36,.2)',
+      stirName:this._names.stirrer, gluName:this._names.glucose, naohName:this._names.naoh, lightName:this._names.light,
+      stirPinTxt:'GPIO '+this._pins.stirrer, gluPinTxt:'GPIO '+this._pins.glucose, naohPinTxt:'GPIO '+this._pins.naoh, lightPinTxt:'GPIO '+this._pins.light,
       coolVal:Math.round(s.stirrer), moiVal:Math.round(s.glucoseDoseMs), thrVal:Math.round(s.ampThreshold), setCool:this.setCool, setMoi:this.setMoi, setThr:this.setThr,
       predFireTxt:pr.halfP.toFixed(1)+'s', predSolidTxt:Math.round(pr.amp*100)+'%', predYTxt:pr.period.toFixed(1)+'s', predHzTxt:Math.round(s.stallRisk*100)+'%', predHzColor,
       targetVal:s.targetHalfPeriod, setTarget:this.setTarget, solveMode:s.solveMode, setSolveEq:this.setSolveEq, setSolveEnergy:this.setSolveEnergy,
