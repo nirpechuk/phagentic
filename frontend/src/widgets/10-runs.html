@@ -1,0 +1,25 @@
+
+
+      <!-- RUNS -->
+      <sc-if value="{{ panels.runs.open }}" hint-placeholder-val="{{ false }}">
+      <div style="position:absolute; left:0; top:0; width:{{ panels.runs.w }}; height:{{ panels.runs.h }}; transform:{{ panels.runs.tf }}; z-index:{{ panels.runs.z }}; border-radius:20px; background:linear-gradient(150deg, rgba(254,251,246,.74), rgba(247,242,233,.52)); -webkit-backdrop-filter:blur(15px) saturate(1.3); backdrop-filter:blur(15px) saturate(1.3); border:1px solid rgba(255,255,255,.64); box-shadow:0 26px 54px -28px rgba(70,60,48,.5), inset 0 1px 0 rgba(255,255,255,.88); display:flex; flex-direction:column; overflow:hidden; transition:{{ animTrans }};">
+        <div onMouseDown="{{ panels.runs.resize }}" title="drag to resize" style="position:absolute; right:2px; bottom:2px; width:18px; height:18px; cursor:nwse-resize; z-index:6; border-right:2px solid rgba(59,55,47,.3); border-bottom:2px solid rgba(59,55,47,.3); border-bottom-right-radius:8px;"></div>
+        <div onMouseDown="{{ dragH.runs }}" style="cursor:grab; padding:13px 18px 9px; display:flex; align-items:center; justify-content:space-between;">
+          <span style="font-family:'JetBrains Mono',monospace; font-size:12.5px; letter-spacing:.18em; color:rgba(46,43,36,.55);">RUNS</span>
+          <div style="display:flex; align-items:center; gap:10px;">
+            <button onMouseDown="{{ stopProp }}" onClick="{{ addRun }}" style="cursor:pointer; background:rgba(111,132,102,.14); border:1px solid rgba(111,132,102,.3); border-radius:7px; padding:4px 10px; font-family:'JetBrains Mono',monospace; font-size:13px; color:#566e4b;" style-hover="background:rgba(111,132,102,.24);">＋ add run</button>
+            <button onMouseDown="{{ stopProp }}" onClick="{{ closeH.runs }}" style="cursor:pointer; background:none; border:none; color:rgba(46,43,36,.4); font-size:15px; line-height:1; padding:2px 4px;" style-hover="color:#2e2b24;">×</button>
+          </div>
+        </div>
+        <div style="flex:1; min-height:0; overflow-y:auto; padding:6px 16px 14px; display:flex; flex-direction:column; gap:8px;">
+          <sc-for list="{{ runsList }}" as="r" hint-placeholder-count="4">
+            <div style="display:flex; align-items:center; gap:11px; padding:9px 11px; border-radius:11px; background:{{ r.rowBg }}; border:1px solid rgba(59,55,47,.1);">
+              <button onMouseDown="{{ stopProp }}" onClick="{{ r.recolor }}" title="recolor" style="cursor:pointer; flex:none; width:16px; height:16px; border-radius:5px; border:1px solid rgba(0,0,0,.12); background:{{ r.color }};"></button>
+              <span style="flex:1; font-family:'JetBrains Mono',monospace; font-size:13px; color:#2e2b24;">{{ r.label }}</span>
+              <span style="font-family:'JetBrains Mono',monospace; font-size:13.5px; color:{{ r.yieldColor }};">{{ r.yieldTxt }}</span>
+              <span style="width:7px; height:7px; border-radius:50%; background:{{ r.statusDot }};"></span>
+            </div>
+          </sc-for>
+        </div>
+      </div>
+      </sc-if>

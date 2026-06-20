@@ -1,0 +1,16 @@
+
+
+  <!-- WATERCOLOR DESK -->
+  <svg width="0" height="0" style="position:absolute;">
+    <filter id="wc"><feTurbulence type="fractalNoise" baseFrequency="0.013" numOctaves="2" seed="11" result="n"/><feDisplacementMap in="SourceGraphic" in2="n" scale="48"/></filter>
+    <filter id="paper"><feTurbulence type="fractalNoise" baseFrequency="0.7" numOctaves="3" stitchTiles="stitch"/><feColorMatrix type="saturate" values="0"/></filter>
+  </svg>
+  <div style="position:absolute; inset:-8%; opacity:{{ wcOpacity }}; filter:url(#wc); mix-blend-mode:multiply; pointer-events:none;">
+    <div style="position:absolute; left:-8%; top:-12%; width:60%; height:72%; border-radius:50%; filter:blur(74px); background:radial-gradient(circle at 42% 42%, {{ blobA }}, transparent 66%); animation:drift1 30s ease-in-out infinite;"></div>
+    <div style="position:absolute; right:-12%; top:-8%; width:56%; height:64%; border-radius:50%; filter:blur(86px); background:radial-gradient(circle at 50% 50%, {{ blobB }}, transparent 66%); animation:drift2 36s ease-in-out infinite;"></div>
+    <div style="position:absolute; left:14%; bottom:-22%; width:64%; height:70%; border-radius:50%; filter:blur(90px); background:radial-gradient(circle at 50% 50%, {{ blobC }}, transparent 68%); animation:drift3 33s ease-in-out infinite;"></div>
+    <div style="position:absolute; right:6%; bottom:-16%; width:42%; height:52%; border-radius:50%; filter:blur(72px); background:radial-gradient(circle at 50% 50%, {{ blobD }}, transparent 68%); animation:drift1 39s ease-in-out infinite;"></div>
+  </div>
+  <div style="position:absolute; inset:0; opacity:.5; mix-blend-mode:soft-light; pointer-events:none; background:linear-gradient(#fbf7ee,#e3d8c5);"></div>
+  <div style="position:absolute; inset:0; opacity:.1; filter:url(#paper); pointer-events:none; mix-blend-mode:multiply;"></div>
+  <div style="position:absolute; inset:0; pointer-events:none; background:radial-gradient(140% 120% at 50% -10%, rgba(255,253,247,.5), transparent 44%), radial-gradient(120% 130% at 50% 120%, rgba(86,72,54,.16), transparent 52%);"></div>

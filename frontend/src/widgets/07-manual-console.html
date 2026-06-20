@@ -1,0 +1,120 @@
+
+
+      <!-- MANUAL CONSOLE -->
+      <sc-if value="{{ panels.manual.open }}" hint-placeholder-val="{{ true }}">
+      <div style="position:absolute; left:0; top:0; width:{{ panels.manual.w }}; height:{{ panels.manual.h }}; transform:{{ panels.manual.tf }}; z-index:{{ panels.manual.z }}; border-radius:20px; background:linear-gradient(150deg, rgba(254,251,246,.74), rgba(247,242,233,.52)); -webkit-backdrop-filter:blur(15px) saturate(1.3); backdrop-filter:blur(15px) saturate(1.3); border:1px solid rgba(255,255,255,.64); box-shadow:0 26px 54px -28px rgba(70,60,48,.5), inset 0 1px 0 rgba(255,255,255,.88); display:flex; flex-direction:column; overflow:hidden; transition:{{ animTrans }};">
+        <div onMouseDown="{{ panels.manual.resize }}" title="drag to resize" style="position:absolute; right:2px; bottom:2px; width:18px; height:18px; cursor:nwse-resize; z-index:6; border-right:2px solid rgba(59,55,47,.3); border-bottom:2px solid rgba(59,55,47,.3); border-bottom-right-radius:8px;"></div>
+        <div onMouseDown="{{ dragH.manual }}" style="cursor:grab; padding:13px 18px 9px; display:flex; align-items:center; justify-content:space-between;">
+          <span style="font-family:'JetBrains Mono',monospace; font-size:12.5px; letter-spacing:.18em; color:rgba(46,43,36,.55);">MANUAL CONSOLE</span>
+          <div style="display:flex; align-items:center; gap:10px;">
+            <div style="display:flex; font-family:'JetBrains Mono',monospace; font-size:13px; border:1px solid rgba(59,55,47,.22); border-radius:8px; overflow:hidden;">
+              <button onMouseDown="{{ stopProp }}" onClick="{{ setAuto }}" style="cursor:pointer; border:none; padding:5px 12px; font:inherit; background:{{ autoSegBg }}; color:{{ autoSegColor }};">AUTO</button>
+              <button onMouseDown="{{ stopProp }}" onClick="{{ setManual }}" style="cursor:pointer; border:none; padding:5px 12px; font:inherit; background:{{ manSegBg }}; color:{{ manSegColor }};">MANUAL</button>
+            </div>
+            <button onMouseDown="{{ stopProp }}" onClick="{{ closeH.manual }}" style="cursor:pointer; background:none; border:none; color:rgba(46,43,36,.4); font-size:15px; line-height:1; padding:2px 4px;" style-hover="color:#2e2b24;">×</button>
+          </div>
+        </div>
+        <div style="flex:1; min-height:0; overflow-y:auto; padding:10px 18px 16px; display:flex; flex-direction:column; gap:13px;">
+          <div style="font-family:'JetBrains Mono',monospace; font-size:11px; letter-spacing:.14em; color:rgba(46,43,36,.5);">AUTO TUNING · dose · trigger</div>
+          <div style="display:flex; justify-content:space-around;">
+            <div style="display:flex; flex-direction:column; align-items:center; gap:6px;">
+              <span style="font-family:'JetBrains Mono',monospace; font-size:12px; color:rgba(46,43,36,.6); text-align:center;">DOSE ms<br><span style="opacity:.5; font-size:9.5px;">glucose pulse</span></span>
+              <div onMouseDown="{{ knobMoi }}" title="drag up / down" style="position:relative; width:36px; height:100px; border-radius:12px; cursor:ns-resize; overflow:hidden; background:linear-gradient(180deg, rgba(255,255,255,.42), rgba(224,216,200,.22)); border:1px solid rgba(59,55,47,.22); box-shadow:inset 0 2px 5px rgba(255,255,255,.7), 0 6px 14px -7px rgba(70,60,48,.45);">
+                <div style="position:absolute; inset:0; background:repeating-linear-gradient(0deg, rgba(59,55,47,.07) 0 1px, transparent 1px 13px); pointer-events:none;"></div>
+                <div style="position:absolute; left:0; right:0; bottom:0; height:{{ gluFill }}; background:linear-gradient(180deg, #5f7fb0, #6f8466); box-shadow:0 -2px 16px rgba(95,127,176,.55); transition:height .1s ease;"></div>
+                <div style="position:absolute; left:0; right:0; bottom:calc({{ gluFill }} - 1.5px); height:3px; background:rgba(255,255,255,.9); box-shadow:0 0 8px rgba(255,255,255,.85); pointer-events:none;"></div>
+              </div>
+              <input type="number" step="1" value="{{ moiVal }}" onMouseDown="{{ stopProp }}" onInput="{{ setMoi }}" style="width:62px; text-align:center; background:rgba(255,255,255,.45); border:1px solid rgba(59,55,47,.2); border-radius:7px; padding:4px; font-family:'JetBrains Mono',monospace; font-size:13px; color:#2e2b24; outline:none;" />
+            </div>
+            <div style="display:flex; flex-direction:column; align-items:center; gap:6px;">
+              <span style="font-family:'JetBrains Mono',monospace; font-size:12px; color:rgba(46,43,36,.6); text-align:center;">AUTO @ %<br><span style="opacity:.5; font-size:9.5px;">amp trigger</span></span>
+              <div onMouseDown="{{ knobThr }}" title="drag up / down" style="position:relative; width:36px; height:100px; border-radius:12px; cursor:ns-resize; overflow:hidden; background:linear-gradient(180deg, rgba(255,255,255,.42), rgba(224,216,200,.22)); border:1px solid rgba(59,55,47,.22); box-shadow:inset 0 2px 5px rgba(255,255,255,.7), 0 6px 14px -7px rgba(70,60,48,.45);">
+                <div style="position:absolute; inset:0; background:repeating-linear-gradient(0deg, rgba(59,55,47,.07) 0 1px, transparent 1px 13px); pointer-events:none;"></div>
+                <div style="position:absolute; left:0; right:0; bottom:0; height:{{ ampFill }}; background:linear-gradient(180deg, #5f7fb0, #6f8466); box-shadow:0 -2px 16px rgba(95,127,176,.55); transition:height .1s ease;"></div>
+                <div style="position:absolute; left:0; right:0; bottom:calc({{ ampFill }} - 1.5px); height:3px; background:rgba(255,255,255,.9); box-shadow:0 0 8px rgba(255,255,255,.85); pointer-events:none;"></div>
+              </div>
+              <input type="number" step="1" value="{{ thrVal }}" onMouseDown="{{ stopProp }}" onInput="{{ setThr }}" style="width:62px; text-align:center; background:rgba(255,255,255,.45); border:1px solid rgba(59,55,47,.2); border-radius:7px; padding:4px; font-family:'JetBrains Mono',monospace; font-size:13px; color:#2e2b24; outline:none;" />
+            </div>
+          </div>
+          <div style="border-top:1px solid rgba(59,55,47,.12); padding-top:12px;">
+            <div style="font-family:'JetBrains Mono',monospace; font-size:11px; letter-spacing:.14em; color:rgba(46,43,36,.5); margin-bottom:11px;">DIRECT CONTROL · pumps · stirrer · light (live)</div>
+            <div style="display:flex; justify-content:space-between; gap:8px; align-items:flex-start;">
+              <div style="flex:1; display:flex; flex-direction:column; align-items:center; gap:6px;">
+                <span style="font-family:'JetBrains Mono',monospace; font-size:11px; color:rgba(46,43,36,.72); text-align:center; line-height:1.2;">{{ gluName }}<br><span style="opacity:.5; font-size:9px;">{{ gluPinTxt }}</span></span>
+                <div onMouseDown="{{ gluToggle }}" title="tap to toggle" style="position:relative; width:40px; height:80px; border-radius:11px; cursor:pointer; overflow:hidden; background:linear-gradient(180deg, rgba(255,255,255,.42), rgba(224,216,200,.22)); border:1px solid rgba(59,55,47,.22); box-shadow:inset 0 2px 5px rgba(255,255,255,.7);">
+                  <div style="position:absolute; left:0; right:0; bottom:0; height:{{ gluBarFill }}; background:linear-gradient(180deg,#7aa0d8,#5f7fb0); box-shadow:0 -2px 14px rgba(95,127,176,.55); transition:height .14s ease;"></div>
+                </div>
+                <span style="font-family:'JetBrains Mono',monospace; font-size:12px; font-weight:600; color:#2e2b24;">{{ gluStateTxt }}</span>
+                <div style="display:flex; font-family:'JetBrains Mono',monospace; font-size:11px; border:1px solid rgba(59,55,47,.2); border-radius:8px; overflow:hidden;">
+                  <button onMouseDown="{{ stopProp }}" onClick="{{ gluSetOff }}" style="cursor:pointer; border:none; padding:5px 9px; font:inherit; background:{{ gluOffBg }}; color:{{ gluOffColor }};">OFF</button>
+                  <button onMouseDown="{{ stopProp }}" onClick="{{ gluSetOn }}" style="cursor:pointer; border:none; padding:5px 9px; font:inherit; background:{{ gluOnBg }}; color:{{ gluOnColor }};">ON</button>
+                </div>
+                <button onMouseDown="{{ stopProp }}" onClick="{{ pulseGlucose }}" style="cursor:pointer; border:1px solid rgba(95,127,176,.4); border-radius:8px; padding:4px 12px; font-family:'JetBrains Mono',monospace; font-size:11px; color:#4a6cd0; background:rgba(95,127,176,.12);" style-hover="background:rgba(95,127,176,.22);">pulse</button>
+              </div>
+              <div style="flex:1; display:flex; flex-direction:column; align-items:center; gap:6px;">
+                <span style="font-family:'JetBrains Mono',monospace; font-size:11px; color:rgba(46,43,36,.72); text-align:center; line-height:1.2;">{{ naohName }}<br><span style="opacity:.5; font-size:9px;">{{ naohPinTxt }}</span></span>
+                <div onMouseDown="{{ naohToggle }}" title="tap to toggle" style="position:relative; width:40px; height:80px; border-radius:11px; cursor:pointer; overflow:hidden; background:linear-gradient(180deg, rgba(255,255,255,.42), rgba(224,216,200,.22)); border:1px solid rgba(59,55,47,.22); box-shadow:inset 0 2px 5px rgba(255,255,255,.7);">
+                  <div style="position:absolute; left:0; right:0; bottom:0; height:{{ naohBarFill }}; background:linear-gradient(180deg,#c8a24e,#94762f); box-shadow:0 -2px 14px rgba(148,118,47,.5); transition:height .14s ease;"></div>
+                </div>
+                <span style="font-family:'JetBrains Mono',monospace; font-size:12px; font-weight:600; color:#2e2b24;">{{ naohStateTxt }}</span>
+                <div style="display:flex; font-family:'JetBrains Mono',monospace; font-size:11px; border:1px solid rgba(59,55,47,.2); border-radius:8px; overflow:hidden;">
+                  <button onMouseDown="{{ stopProp }}" onClick="{{ naohSetOff }}" style="cursor:pointer; border:none; padding:5px 9px; font:inherit; background:{{ naohOffBg }}; color:{{ naohOffColor }};">OFF</button>
+                  <button onMouseDown="{{ stopProp }}" onClick="{{ naohSetOn }}" style="cursor:pointer; border:none; padding:5px 9px; font:inherit; background:{{ naohOnBg }}; color:{{ naohOnColor }};">ON</button>
+                </div>
+                <button onMouseDown="{{ stopProp }}" onClick="{{ pulseNaoh }}" style="cursor:pointer; border:1px solid rgba(148,118,47,.4); border-radius:8px; padding:4px 12px; font-family:'JetBrains Mono',monospace; font-size:11px; color:#94762f; background:rgba(148,118,47,.1);" style-hover="background:rgba(148,118,47,.2);">pulse</button>
+              </div>
+              <div style="flex:1; display:flex; flex-direction:column; align-items:center; gap:6px;">
+                <span style="font-family:'JetBrains Mono',monospace; font-size:11px; color:rgba(46,43,36,.72); text-align:center; line-height:1.2;">{{ stirName }}<br><span style="opacity:.5; font-size:9px;">{{ stirPinTxt }}</span></span>
+                <div onMouseDown="{{ knobCool }}" title="drag up / down" style="position:relative; width:40px; height:80px; border-radius:11px; cursor:ns-resize; overflow:hidden; background:linear-gradient(180deg, rgba(255,255,255,.42), rgba(224,216,200,.22)); border:1px solid rgba(59,55,47,.22); box-shadow:inset 0 2px 5px rgba(255,255,255,.7);">
+                  <div style="position:absolute; inset:0; background:repeating-linear-gradient(0deg, rgba(59,55,47,.07) 0 1px, transparent 1px 13px); pointer-events:none;"></div>
+                  <div style="position:absolute; left:0; right:0; bottom:0; height:{{ stirFill }}; background:linear-gradient(180deg,#7aa0d8,#5f7fb0); box-shadow:0 -2px 14px rgba(95,127,176,.55); transition:height .08s linear;"></div>
+                  <div style="position:absolute; left:0; right:0; bottom:calc({{ stirFill }} - 1.5px); height:3px; background:rgba(255,255,255,.9); box-shadow:0 0 8px rgba(255,255,255,.85); pointer-events:none;"></div>
+                </div>
+                <span style="font-family:'JetBrains Mono',monospace; font-size:12px; font-weight:600; color:#2e2b24;">{{ stirFill }}</span>
+                <div style="display:flex; font-family:'JetBrains Mono',monospace; font-size:11px; border:1px solid rgba(59,55,47,.2); border-radius:8px; overflow:hidden;">
+                  <button onMouseDown="{{ stopProp }}" onClick="{{ stirSetOff }}" style="cursor:pointer; border:none; padding:5px 9px; font:inherit; background:{{ stirOffBg }}; color:{{ stirOffColor }};">OFF</button>
+                  <button onMouseDown="{{ stopProp }}" onClick="{{ stirSetOn }}" style="cursor:pointer; border:none; padding:5px 9px; font:inherit; background:{{ stirOnBg }}; color:{{ stirOnColor }};">ON</button>
+                </div>
+              </div>
+              <div style="flex:1; display:flex; flex-direction:column; align-items:center; gap:6px;">
+                <span style="font-family:'JetBrains Mono',monospace; font-size:11px; color:rgba(46,43,36,.72); text-align:center; line-height:1.2;">{{ lightName }}<br><span style="opacity:.5; font-size:9px;">{{ lightPinTxt }}</span></span>
+                <div onMouseDown="{{ knobLight }}" title="drag up / down" style="position:relative; width:40px; height:80px; border-radius:11px; cursor:ns-resize; overflow:hidden; background:linear-gradient(180deg, rgba(255,255,255,.42), rgba(224,216,200,.22)); border:1px solid rgba(59,55,47,.22); box-shadow:inset 0 2px 5px rgba(255,255,255,.7);">
+                  <div style="position:absolute; inset:0; background:repeating-linear-gradient(0deg, rgba(59,55,47,.07) 0 1px, transparent 1px 13px); pointer-events:none;"></div>
+                  <div style="position:absolute; left:0; right:0; bottom:0; height:{{ lightFill }}; background:linear-gradient(180deg,#e7c96b,#b9923a); box-shadow:0 -2px 14px rgba(231,201,107,.5); transition:height .08s linear;"></div>
+                  <div style="position:absolute; left:0; right:0; bottom:calc({{ lightFill }} - 1.5px); height:3px; background:rgba(255,255,255,.9); box-shadow:0 0 8px rgba(255,255,255,.85); pointer-events:none;"></div>
+                </div>
+                <span style="font-family:'JetBrains Mono',monospace; font-size:12px; font-weight:600; color:#2e2b24;">{{ lightPct }}</span>
+                <div style="display:flex; font-family:'JetBrains Mono',monospace; font-size:11px; border:1px solid rgba(59,55,47,.2); border-radius:8px; overflow:hidden;">
+                  <button onMouseDown="{{ stopProp }}" onClick="{{ lightSetOff }}" style="cursor:pointer; border:none; padding:5px 9px; font:inherit; background:{{ lightOffBg }}; color:{{ lightOffColor }};">OFF</button>
+                  <button onMouseDown="{{ stopProp }}" onClick="{{ lightSetOn }}" style="cursor:pointer; border:none; padding:5px 9px; font:inherit; background:{{ lightOnBg }}; color:{{ lightOnColor }};">ON</button>
+                </div>
+              </div>
+            </div>
+            <button onMouseDown="{{ stopProp }}" onClick="{{ recalibrateSensor }}" title="Aim the sensor at white first" style="cursor:pointer; width:100%; margin-top:11px; border:1px solid rgba(59,55,47,.22); border-radius:9px; padding:8px; font-family:'JetBrains Mono',monospace; font-size:12.5px; background:rgba(255,255,255,.4); color:rgba(46,43,36,.8);" style-hover="border-color:rgba(59,55,47,.4);">recalibrate sensor (aim at white) {{ calibTxt }}</button>
+          </div>
+          <div style="border-top:1px solid rgba(59,55,47,.12); padding-top:11px;">
+            <div style="font-family:'JetBrains Mono',monospace; font-size:12px; color:rgba(46,43,36,.55); margin-bottom:8px;">PREDICTED OUTCOME · world model</div>
+            <div style="display:grid; grid-template-columns:1fr 1fr 1fr 1fr; gap:10px; font-family:'JetBrains Mono',monospace;">
+              <div><div style="font-size:11.5px; color:rgba(46,43,36,.52);">half-p</div><div style="font-size:17px; font-weight:600; margin-top:3px; color:#2e2b24;">{{ predFireTxt }}</div></div>
+              <div><div style="font-size:11.5px; color:rgba(46,43,36,.52);">amp</div><div style="font-size:17px; font-weight:600; margin-top:3px; color:#2e2b24;">{{ predSolidTxt }}</div></div>
+              <div><div style="font-size:11.5px; color:rgba(46,43,36,.52);">period</div><div style="font-size:17px; font-weight:600; margin-top:3px; color:#566e4b;">{{ predYTxt }}</div></div>
+              <div><div style="font-size:11.5px; color:rgba(46,43,36,.52);">stall</div><div style="font-size:17px; font-weight:600; margin-top:3px; color:{{ predHzColor }};">{{ predHzTxt }}</div></div>
+            </div>
+          </div>
+          <div style="border-top:1px solid rgba(59,55,47,.12); padding-top:11px;">
+            <div style="display:flex; align-items:center; justify-content:space-between; margin-bottom:9px;">
+              <span style="font-family:'JetBrains Mono',monospace; font-size:12px; color:rgba(46,43,36,.55);">SOLVE FOR HALF-PERIOD</span>
+              <div style="display:flex; font-family:'JetBrains Mono',monospace; font-size:12px; border:1px solid rgba(59,55,47,.2); border-radius:7px; overflow:hidden;">
+                <button onMouseDown="{{ stopProp }}" onClick="{{ setSolveEq }}" style="cursor:pointer; border:none; padding:4px 9px; font:inherit; background:{{ solveEqBg }}; color:{{ solveEqColor }};">hold period</button>
+                <button onMouseDown="{{ stopProp }}" onClick="{{ setSolveEnergy }}" style="cursor:pointer; border:none; padding:4px 9px; font:inherit; background:{{ solveEnBg }}; color:{{ solveEnColor }};">min stir</button>
+              </div>
+            </div>
+            <div style="display:flex; align-items:center; gap:10px;">
+              <input type="number" step="50" value="{{ targetVal }}" onMouseDown="{{ stopProp }}" onInput="{{ setTarget }}" style="width:78px; text-align:center; background:rgba(255,255,255,.5); border:1px solid rgba(59,55,47,.2); border-radius:8px; padding:7px; font-family:'JetBrains Mono',monospace; font-size:14px; color:#2e2b24; outline:none;" />
+              <span style="flex:1; font-size:13.5px; line-height:1.4; color:rgba(46,43,36,.8);">{{ solveTxt }}</span>
+              <button onMouseDown="{{ stopProp }}" onClick="{{ applySolve }}" style="cursor:pointer; flex:none; background:#6f8466; border:none; border-radius:8px; padding:7px 13px; font-family:'JetBrains Mono',monospace; font-size:13.5px; font-weight:600; color:#fbf8f2;" style-hover="background:#566e4b;">apply</button>
+            </div>
+          </div>
+        </div>
+      </div>
+      </sc-if>

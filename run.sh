@@ -28,6 +28,9 @@ echo "PHAGENTIC UI  →  $URL"
 echo "Open in Chrome or Edge, then click  ⌁ connect  to pair the Bioreactor over Bluetooth."
 echo "(No hardware? It runs a built-in simulation. Ctrl+C to stop.)"
 
+# Assemble index.html from src/shell.html + src/widgets/*.html.
+( cd "$DIR" && node build.js ) || echo "build.js skipped (node missing?) — serving existing index.html"
+
 # Open the browser a moment after the server comes up (best-effort, non-fatal).
 ( sleep 1; (xdg-open "$URL" >/dev/null 2>&1 || open "$URL" >/dev/null 2>&1 || true) ) &
 

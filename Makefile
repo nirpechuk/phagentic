@@ -23,6 +23,7 @@ help:
 # over Web Bluetooth (the ⌁ connect button) or to the hub via ?backend=.
 ui:
 	@echo "PHAGENTIC UI → http://localhost:$(UI_PORT)/   (Ctrl+C to stop)"
+	@cd frontend && node build.js
 	@( sleep 1; (xdg-open "http://localhost:$(UI_PORT)/" || open "http://localhost:$(UI_PORT)/") >/dev/null 2>&1 & ) || true
 	@cd frontend && python3 -m http.server $(UI_PORT)
 
