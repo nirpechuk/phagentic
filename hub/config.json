@@ -1,0 +1,9 @@
+{
+  "ble_device": "Bioreactor",
+  "mosfets": [
+    { "name": "NaOH Pump",   "pin": 18, "mode": "digital" },
+    { "name": "Glucose Pump",  "pin": 19, "mode": "digital" },
+    { "name": "Stirrer", "pin": 23, "mode": "pwm" }
+  ],
+  "sensor_light": { "pin": 25 }
+}
