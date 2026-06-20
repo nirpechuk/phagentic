@@ -1,0 +1,1127 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>PHAGENTIC · closed-loop phage controller</title>
+<script src="./api.js"></script>
+<script src="./ble.js"></script>
+<script src="./runtime.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Instrument+Serif:ital@0;1&family=Space+Grotesk:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+  *{ box-sizing:border-box; }
+  html,body{ margin:0; height:100%; background:#ece4d6; }
+  body{ font-family:'Space Grotesk',sans-serif; -webkit-font-smoothing:antialiased; }
+  ::-webkit-scrollbar{ width:9px; height:9px; }
+  ::-webkit-scrollbar-thumb{ background:rgba(59,55,47,.24); border-radius:5px; }
+  ::-webkit-scrollbar-track{ background:transparent; }
+  input{ font-family:inherit; }
+  input[type=number]::-webkit-inner-spin-button{ opacity:.35; }
+  @keyframes spin3d{ from{ transform:rotateY(0deg);} to{ transform:rotateY(360deg);} }
+  @keyframes bob{ 0%,100%{ transform:translateY(-9px);} 50%{ transform:translateY(9px);} }
+  @keyframes drift1{ 0%,100%{ transform:translate(0,0) scale(1);} 50%{ transform:translate(4%,-3%) scale(1.1);} }
+  @keyframes drift2{ 0%,100%{ transform:translate(0,0) scale(1.04);} 50%{ transform:translate(-5%,4%) scale(1);} }
+  @keyframes drift3{ 0%,100%{ transform:translate(0,0) scale(1);} 50%{ transform:translate(3%,5%) scale(1.12);} }
+  @keyframes pulse{ 0%,100%{ opacity:.4;} 50%{ opacity:1;} }
+</style>
+</helmet>
+
+<div style="position:fixed; inset:0; overflow:hidden; background:#ece4d6; color:#2e2b24; font-family:'Space Grotesk',sans-serif;">
+
+  <!-- WATERCOLOR DESK -->
+  <svg width="0" height="0" style="position:absolute;">
+    <filter id="wc"><feTurbulence type="fractalNoise" baseFrequency="0.013" numOctaves="2" seed="11" result="n"/><feDisplacementMap in="SourceGraphic" in2="n" scale="48"/></filter>
+    <filter id="paper"><feTurbulence type="fractalNoise" baseFrequency="0.7" numOctaves="3" stitchTiles="stitch"/><feColorMatrix type="saturate" values="0"/></filter>
+  </svg>
+  <div style="position:absolute; inset:-8%; opacity:{{ wcOpacity }}; filter:url(#wc); mix-blend-mode:multiply; pointer-events:none;">
+    <div style="position:absolute; left:-8%; top:-12%; width:60%; height:72%; border-radius:50%; filter:blur(74px); background:radial-gradient(circle at 42% 42%, {{ blobA }}, transparent 66%); animation:drift1 30s ease-in-out infinite;"></div>
+    <div style="position:absolute; right:-12%; top:-8%; width:56%; height:64%; border-radius:50%; filter:blur(86px); background:radial-gradient(circle at 50% 50%, {{ blobB }}, transparent 66%); animation:drift2 36s ease-in-out infinite;"></div>
+    <div style="position:absolute; left:14%; bottom:-22%; width:64%; height:70%; border-radius:50%; filter:blur(90px); background:radial-gradient(circle at 50% 50%, {{ blobC }}, transparent 68%); animation:drift3 33s ease-in-out infinite;"></div>
+    <div style="position:absolute; right:6%; bottom:-16%; width:42%; height:52%; border-radius:50%; filter:blur(72px); background:radial-gradient(circle at 50% 50%, {{ blobD }}, transparent 68%); animation:drift1 39s ease-in-out infinite;"></div>
+  </div>
+  <div style="position:absolute; inset:0; opacity:.5; mix-blend-mode:soft-light; pointer-events:none; background:linear-gradient(#fbf7ee,#e3d8c5);"></div>
+  <div style="position:absolute; inset:0; opacity:.1; filter:url(#paper); pointer-events:none; mix-blend-mode:multiply;"></div>
+  <div style="position:absolute; inset:0; pointer-events:none; background:radial-gradient(140% 120% at 50% -10%, rgba(255,253,247,.5), transparent 44%), radial-gradient(120% 130% at 50% 120%, rgba(86,72,54,.16), transparent 52%);"></div>
+
+  <!-- CONSOLE -->
+  <div style="position:absolute; inset:0; display:flex; flex-direction:column; opacity:{{ consoleOpacity }}; pointer-events:{{ consolePE }}; transition:opacity .9s ease;">
+
+    <header style="display:flex; align-items:center; justify-content:space-between; padding:15px 30px; border-bottom:1px solid rgba(59,55,47,.16); background:linear-gradient(rgba(247,243,235,.55),rgba(244,238,228,.32)); -webkit-backdrop-filter:blur(9px); backdrop-filter:blur(9px);">
+      <div style="display:flex; align-items:center; gap:15px;">
+        <div onClick="{{ goHome }}" title="live sensor colour — back to home" style="cursor:pointer; width:26px; height:26px; border-radius:7px; background:{{ vesselColor }}; border:1px solid rgba(59,55,47,.28); box-shadow:inset 0 1px 3px rgba(255,255,255,.6); transition:background .12s linear;"></div>
+        <div onClick="{{ goHome }}" title="back to home" style="cursor:pointer; font-weight:600; letter-spacing:.34em; font-size:15px; color:#2e2b24;">PHAGENTIC</div>
+        <div style="font-family:'JetBrains Mono',monospace; font-size:11.5px; color:rgba(46,43,36,.55); letter-spacing:.05em; padding-left:15px; border-left:1px solid rgba(59,55,47,.2);">blue-bottle&nbsp;oscillation&nbsp;controller</div>
+      </div>
+      <div style="display:flex; align-items:center; gap:20px;">
+        <div style="display:flex; align-items:center; gap:9px; font-family:'JetBrains Mono',monospace; font-size:12.5px; color:rgba(46,43,36,.72);">
+          <span style="width:8px; height:8px; border-radius:50%; background:{{ statusDot }}; animation:pulse 2s ease-in-out infinite;"></span>{{ statusTxt }}&nbsp;·&nbsp;{{ runLabel2 }}&nbsp;·&nbsp;t&nbsp;{{ clockTxt }}&nbsp;·&nbsp;<span style="color:{{ sourceColor }};">{{ sourceTxt }}</span>
+        </div>
+        <div style="display:flex; align-items:center; gap:5px; font-family:'JetBrains Mono',monospace;">
+          <span style="font-size:10px; letter-spacing:.1em; color:rgba(46,43,36,.5); margin-right:3px;">TEXT</span>
+          <button onClick="{{ zoomOut }}" title="Smaller" style="cursor:pointer; background:none; border:1px solid rgba(59,55,47,.25); border-radius:7px; width:27px; height:27px; font:inherit; font-size:12px; color:#2e2b24;" style-hover="background:rgba(59,55,47,.08);">A−</button>
+          <button onClick="{{ zoomReset }}" style="cursor:pointer; background:none; border:1px solid rgba(59,55,47,.25); border-radius:7px; padding:0 9px; height:27px; font:inherit; font-size:11.5px; color:rgba(46,43,36,.72);" style-hover="background:rgba(59,55,47,.08);">{{ zoomTxt }}</button>
+          <button onClick="{{ zoomIn }}" title="Larger" style="cursor:pointer; background:none; border:1px solid rgba(59,55,47,.25); border-radius:7px; width:29px; height:27px; font:inherit; font-size:15px; color:#2e2b24;" style-hover="background:rgba(59,55,47,.08);">A+</button>
+        </div>
+        <button onClick="{{ bleConnect }}" title="Connect to the bioreactor over Bluetooth" style="cursor:pointer; background:none; border:none; border-bottom:1.5px solid rgba(111,132,102,.5); padding:4px 1px; font-family:'JetBrains Mono',monospace; font-size:12.5px; letter-spacing:.05em; color:#566e4b;" style-hover="border-bottom-color:#2e2b24; color:#2e2b24;">{{ bleLabel }}</button>
+        <button onClick="{{ tidyDesk }}" style="cursor:pointer; background:none; border:none; border-bottom:1.5px solid rgba(59,55,47,.4); padding:4px 1px; font-family:'JetBrains Mono',monospace; font-size:12.5px; letter-spacing:.05em; color:rgba(46,43,36,.72);" style-hover="color:#2e2b24; border-bottom-color:#2e2b24;">✦ tidy desk</button>
+        <div style="display:flex; align-items:center; gap:16px; font-family:'JetBrains Mono',monospace; font-size:12.5px; letter-spacing:.05em;">
+          <button onClick="{{ toggleRun }}" style="cursor:pointer; background:none; border:none; border-bottom:1.5px solid transparent; padding:4px 1px; font:inherit; color:rgba(46,43,36,.72);" style-hover="color:#2e2b24; border-bottom-color:rgba(59,55,47,.5);">{{ runLabel }}</button>
+          <button onClick="{{ remelt }}" style="cursor:pointer; background:none; border:none; border-bottom:1.5px solid transparent; padding:4px 1px; font:inherit; color:rgba(46,43,36,.72);" style-hover="color:#2e2b24; border-bottom-color:rgba(59,55,47,.5);">restart</button>
+          <button onClick="{{ bump }}" style="cursor:pointer; background:none; border:none; border-bottom:1.5px solid transparent; padding:4px 1px; font:inherit; color:#94762f;" style-hover="border-bottom-color:rgba(148,118,47,.6);">disturb</button>
+          <span style="width:1px; height:16px; background:rgba(59,55,47,.22);"></span>
+          <button onClick="{{ manualFire }}" style="cursor:pointer; background:none; border:none; padding:4px 1px; font:inherit; font-weight:700; letter-spacing:.14em; color:#566e4b; border-bottom:2px solid #6f8466;" style-hover="border-bottom-color:#2e2b24;">⟢ PULSE</button>
+        </div>
+        <button onClick="{{ openSettings }}" title="Bluetooth & settings" style="cursor:pointer; margin-left:4px; background:linear-gradient(150deg, rgba(247,243,235,.85), rgba(225,219,207,.7)); -webkit-backdrop-filter:blur(8px); backdrop-filter:blur(8px); border:1px solid rgba(59,55,47,.3); border-radius:9px; padding:8px 14px; font-family:'JetBrains Mono',monospace; font-size:12px; letter-spacing:.06em; color:#3b372f; box-shadow:0 4px 12px -6px rgba(70,60,48,.4), inset 0 1px 0 rgba(255,255,255,.7);" style-hover="background:linear-gradient(150deg, rgba(247,243,235,.97), rgba(225,219,207,.85)); border-color:rgba(59,55,47,.46);">⚙ settings</button>
+      </div>
+    </header>
+
+    <div style="flex:1; min-height:0; position:relative;">
+    <div ref="{{ scrollRef }}" style="position:absolute; inset:0; overflow:auto;">
+    <div style="position:relative; width:{{ spacerW }}; height:{{ spacerH }};">
+    <div style="position:absolute; left:0; top:0; width:{{ stageWpx }}; height:{{ stageHpx }}; transform:{{ stageTransform }}; transform-origin:0 0;">
+
+      <!-- REACTORS -->
+      <sc-if value="{{ panels.reactors.open }}" hint-placeholder-val="{{ true }}">
+      <div style="position:absolute; left:0; top:0; width:{{ panels.reactors.w }}; height:{{ panels.reactors.h }}; transform:{{ panels.reactors.tf }}; z-index:{{ panels.reactors.z }}; border-radius:20px; background:linear-gradient(150deg, rgba(254,251,246,.72), rgba(247,242,233,.5)); -webkit-backdrop-filter:blur(14px) saturate(1.3); backdrop-filter:blur(14px) saturate(1.3); border:1px solid rgba(255,255,255,.62); box-shadow:0 24px 50px -26px rgba(70,60,48,.5), inset 0 1px 0 rgba(255,255,255,.85); display:flex; flex-direction:column; overflow:hidden; transition:{{ animTrans }};">
+        <div onMouseDown="{{ panels.reactors.resize }}" title="drag to resize" style="position:absolute; right:2px; bottom:2px; width:18px; height:18px; cursor:nwse-resize; z-index:6; border-right:2px solid rgba(59,55,47,.3); border-bottom:2px solid rgba(59,55,47,.3); border-bottom-right-radius:8px;"></div>
+        <div onMouseDown="{{ dragH.reactors }}" style="cursor:grab; padding:13px 16px 9px; display:flex; align-items:center; justify-content:space-between;">
+          <span style="font-family:'JetBrains Mono',monospace; font-size:11px; letter-spacing:.18em; color:rgba(46,43,36,.55);">VESSEL</span>
+          <button onMouseDown="{{ stopProp }}" onClick="{{ closeH.reactors }}" style="cursor:pointer; background:none; border:none; color:rgba(46,43,36,.4); font-size:15px; line-height:1; padding:2px 4px;" style-hover="color:#2e2b24;">×</button>
+        </div>
+        <div style="flex:1; min-height:0; padding:6px 18px 16px; display:flex; flex-direction:column;">
+          <div style="display:flex; align-items:center; gap:11px; padding:8px 10px; margin-bottom:10px; border-radius:11px; background:rgba(255,255,255,.34); border:1px solid rgba(59,55,47,.12);">
+            <div title="raw RGB sensor colour" style="flex:none; width:40px; height:40px; border-radius:9px; background:{{ vesselColor }}; border:1px solid rgba(59,55,47,.2); box-shadow:inset 0 1px 3px rgba(255,255,255,.6); transition:background .12s linear;"></div>
+            <div style="flex:1; min-width:0;">
+              <div style="font-family:'JetBrains Mono',monospace; font-size:10px; color:rgba(46,43,36,.5); letter-spacing:.04em;">TCS34725 · live colour</div>
+              <div style="font-family:'JetBrains Mono',monospace; font-size:13px; color:#2e2b24; margin-top:3px;">{{ sensorRgbTxt }}&nbsp;&nbsp;lux {{ sensorLux }}</div>
+            </div>
+          </div>
+          <div style="display:grid; grid-template-columns:1fr 1fr; gap:16px; flex:1; min-height:0;">
+            <div style="display:flex; flex-direction:column; align-items:center;">
+              <div style="display:flex; align-items:center; gap:7px; font-family:'JetBrains Mono',monospace; font-size:12px; color:#566e4b;"><span style="width:7px; height:7px; border-radius:50%; background:#6f8466;"></span>SOLUTION</div>
+              <div style="position:relative; flex:1; width:100%; display:flex; align-items:flex-end; justify-content:center; padding:14px 0;">
+                <div style="position:relative; width:78px; height:100%; max-height:150px; border-radius:11px 11px 30px 30px / 8px 8px 46px 46px; overflow:hidden; border:1px solid rgba(59,55,47,.2); background:linear-gradient(118deg, rgba(255,255,255,.45), rgba(255,255,255,.04) 38%, rgba(255,255,255,.18)); box-shadow:{{ oursGlow }}, inset 0 3px 10px rgba(255,255,255,.6), inset 0 -14px 22px rgba(95,115,85,.08);">
+                  <div style="position:absolute; left:0; right:0; bottom:0; height:70%; background:{{ vesselColor }}; opacity:.92; transition:background .12s linear;"></div>
+                  <div style="position:absolute; left:0; right:0; bottom:0; height:70%; background:linear-gradient(180deg, rgba(255,255,255,.55), transparent 32%); opacity:.6;"></div>
+                  <div style="position:absolute; left:9px; top:11px; bottom:36px; width:9px; border-radius:8px; background:linear-gradient(180deg, rgba(255,255,255,.95), transparent); filter:blur(.5px);"></div>
+                </div>
+              </div>
+              <div style="font-family:'JetBrains Mono',monospace; font-size:26px; font-weight:600; line-height:1; color:#2e2b24;">{{ tempOursTxt }}</div>
+              <div style="font-family:'JetBrains Mono',monospace; font-size:11px; color:rgba(46,43,36,.58); margin-top:6px;">phase {{ oursSolidTxt }}</div>
+            </div>
+            <div style="display:flex; flex-direction:column; align-items:center;">
+              <div style="display:flex; align-items:center; gap:7px; font-family:'JetBrains Mono',monospace; font-size:12px; color:rgba(46,43,36,.55);"><span style="width:7px; height:7px; border-radius:50%; background:rgba(46,43,36,.36);"></span>AMPLITUDE</div>
+              <div style="position:relative; flex:1; width:100%; display:flex; align-items:flex-end; justify-content:center; padding:14px 0;">
+                <div style="position:relative; width:78px; height:100%; max-height:150px; border-radius:11px 11px 30px 30px / 8px 8px 46px 46px; overflow:hidden; border:1px solid rgba(59,55,47,.16); background:linear-gradient(118deg, rgba(255,255,255,.32), rgba(255,255,255,.03) 38%, rgba(255,255,255,.1)); box-shadow:inset 0 3px 10px rgba(255,255,255,.5);">
+                  <div style="position:absolute; left:0; right:0; bottom:0; height:70%; background:linear-gradient(180deg,#cbbd9d,#b1a079); opacity:.66;"></div>
+                  <div style="position:absolute; left:0; right:0; bottom:0; height:70%; background:linear-gradient(180deg,#e3ddd2,#bdb4a6); opacity:{{ baseCryst }};"></div>
+                  <div style="position:absolute; left:9px; top:11px; bottom:36px; width:9px; border-radius:8px; background:linear-gradient(180deg, rgba(255,255,255,.75), transparent); filter:blur(.5px);"></div>
+                </div>
+              </div>
+              <div style="font-family:'JetBrains Mono',monospace; font-size:26px; font-weight:600; line-height:1; color:rgba(46,43,36,.62);">{{ tempBaseTxt }}</div>
+              <div style="font-family:'JetBrains Mono',monospace; font-size:11px; color:rgba(46,43,36,.58); margin-top:6px;">{{ baseSolidTxt }}</div>
+            </div>
+          </div>
+          <div style="margin-top:14px;">
+            <div style="font-family:'JetBrains Mono',monospace; font-size:11px; color:rgba(46,43,36,.55); margin-bottom:7px; display:flex; justify-content:space-between;"><span>live · blue intensity</span><span style="color:#566e4b;">B̂ {{ turbidityTxt }}</span></div>
+            <div style="position:relative; height:42px; border-radius:8px; overflow:hidden; border:1px solid rgba(59,55,47,.14); background:repeating-linear-gradient(135deg, rgba(95,115,85,.1) 0 9px, rgba(95,115,85,.03) 9px 18px);">
+              <div style="position:absolute; inset:0; background:#cdddda; opacity:{{ turbidity }};"></div>
+            </div>
+          </div>
+        </div>
+      </div>
+      </sc-if>
+
+      <!-- COLOUR LOG -->
+      <sc-if value="{{ panels.swatch.open }}" hint-placeholder-val="{{ true }}">
+      <div style="position:absolute; left:0; top:0; width:{{ panels.swatch.w }}; height:{{ panels.swatch.h }}; transform:{{ panels.swatch.tf }}; z-index:{{ panels.swatch.z }}; border-radius:20px; background:linear-gradient(150deg, rgba(254,251,246,.72), rgba(247,242,233,.5)); -webkit-backdrop-filter:blur(14px) saturate(1.3); backdrop-filter:blur(14px) saturate(1.3); border:1px solid rgba(255,255,255,.62); box-shadow:0 24px 50px -26px rgba(70,60,48,.5), inset 0 1px 0 rgba(255,255,255,.85); display:flex; flex-direction:column; overflow:hidden; transition:{{ animTrans }};">
+        <div onMouseDown="{{ panels.swatch.resize }}" title="drag to resize" style="position:absolute; right:2px; bottom:2px; width:18px; height:18px; cursor:nwse-resize; z-index:6; border-right:2px solid rgba(59,55,47,.3); border-bottom:2px solid rgba(59,55,47,.3); border-bottom-right-radius:8px;"></div>
+        <div onMouseDown="{{ dragH.swatch }}" style="cursor:grab; padding:13px 16px 9px; display:flex; align-items:center; justify-content:space-between;">
+          <span style="font-family:'JetBrains Mono',monospace; font-size:11px; letter-spacing:.18em; color:rgba(46,43,36,.55);">COLOUR LOG</span>
+          <button onMouseDown="{{ stopProp }}" onClick="{{ closeH.swatch }}" style="cursor:pointer; background:none; border:none; color:rgba(46,43,36,.4); font-size:15px; line-height:1; padding:2px 4px;" style-hover="color:#2e2b24;">×</button>
+        </div>
+        <div style="flex:1; min-height:0; padding:4px 16px 16px; display:flex; flex-direction:column;">
+          <div style="display:flex; flex-direction:column; align-items:center;">
+            <div style="width:116px; height:116px; border-radius:50%; background:{{ vesselColor }}; border:1px solid rgba(255,255,255,.6); box-shadow:0 10px 26px -10px rgba(70,60,48,.5), inset 0 6px 18px rgba(255,255,255,.5), inset 0 -12px 24px rgba(0,0,0,.12); transition:background .12s linear;"></div>
+            <div style="font-family:'JetBrains Mono',monospace; font-size:22px; font-weight:600; color:#2e2b24; margin-top:9px;">{{ tempOursTxt }}</div>
+            <div style="font-family:'JetBrains Mono',monospace; font-size:10.5px; color:rgba(46,43,36,.5); margin-top:2px;">{{ sensorRgbTxt }}</div>
+          </div>
+          <div style="display:flex; gap:7px; margin-top:12px;">
+            <button onMouseDown="{{ stopProp }}" onClick="{{ captureColor }}" style="cursor:pointer; flex:1; background:#6f8466; border:none; border-radius:9px; padding:9px; font-family:'JetBrains Mono',monospace; font-size:12px; font-weight:600; color:#fbf8f2;" style-hover="background:#566e4b;">＋ capture</button>
+            <button onMouseDown="{{ stopProp }}" onClick="{{ toggleCompare }}" style="cursor:pointer; background:rgba(111,132,102,.14); border:1px solid rgba(111,132,102,.32); border-radius:9px; padding:9px 12px; font-family:'JetBrains Mono',monospace; font-size:12px; color:#566e4b;" style-hover="background:rgba(111,132,102,.24);">{{ compareBtnTxt }}</button>
+            <button onMouseDown="{{ stopProp }}" onClick="{{ clearCaptures }}" title="clear all" style="cursor:pointer; background:none; border:1px solid rgba(59,55,47,.2); border-radius:9px; padding:9px 11px; font-family:'JetBrains Mono',monospace; font-size:12px; color:rgba(46,43,36,.6);" style-hover="border-color:rgba(59,55,47,.4);">⌫</button>
+          </div>
+          <div style="font-family:'JetBrains Mono',monospace; font-size:10px; color:rgba(46,43,36,.45); margin-top:7px;">{{ captureCountTxt }}</div>
+          <sc-if value="{{ compareMode }}" hint-placeholder-val="{{ false }}">
+          <div style="display:flex; gap:8px; margin-top:10px; overflow-x:auto; padding-bottom:4px;">
+            <sc-for list="{{ compareList }}" as="c" hint-placeholder-count="2">
+              <div style="flex:none; width:90px; border:1px solid rgba(59,55,47,.14); border-radius:10px; overflow:hidden;">
+                <div style="height:52px; background:{{ c.color }};"></div>
+                <div style="padding:6px 7px; font-family:'JetBrains Mono',monospace; font-size:9.5px; color:rgba(46,43,36,.7); line-height:1.55;">{{ c.blueTxt }} blue<br>{{ c.l1 }}<br>{{ c.l2 }} · {{ c.l3 }}<br>{{ c.l4 }}<br>{{ c.l5 }}</div>
+              </div>
+            </sc-for>
+          </div>
+          <div style="font-family:'JetBrains Mono',monospace; font-size:10px; color:#566e4b; margin-top:6px;">tap saved colours below to compare (up to 3)</div>
+          </sc-if>
+          <div style="flex:1; min-height:0; overflow-y:auto; margin-top:11px; display:flex; flex-direction:column; gap:7px;">
+            <sc-for list="{{ capturesList }}" as="c" hint-placeholder-count="3">
+              <button onMouseDown="{{ stopProp }}" onClick="{{ c.pick }}" style="cursor:pointer; text-align:left; display:flex; align-items:center; gap:10px; padding:7px 9px; border-radius:10px; background:{{ c.selBg }}; border:1px solid {{ c.selBorder }};">
+                <span style="flex:none; width:34px; height:34px; border-radius:8px; background:{{ c.color }}; border:1px solid rgba(0,0,0,.1);"></span>
+                <span style="flex:1; min-width:0;">
+                  <span style="display:block; font-family:'JetBrains Mono',monospace; font-size:11.5px; color:#2e2b24;">{{ c.blueTxt }} blue · {{ c.metaTxt }}</span>
+                  <span style="display:block; font-family:'JetBrains Mono',monospace; font-size:10px; color:rgba(46,43,36,.5); margin-top:2px;">{{ c.subTxt }}</span>
+                </span>
+              </button>
+            </sc-for>
+          </div>
+        </div>
+      </div>
+      </sc-if>
+
+      <!-- WORLD MODEL -->
+      <sc-if value="{{ panels.world.open }}" hint-placeholder-val="{{ true }}">
+      <div style="position:absolute; left:0; top:0; width:{{ panels.world.w }}; height:{{ panels.world.h }}; transform:{{ panels.world.tf }}; z-index:{{ panels.world.z }}; border-radius:20px; background:linear-gradient(150deg, rgba(254,251,246,.74), rgba(247,242,233,.52)); -webkit-backdrop-filter:blur(15px) saturate(1.3); backdrop-filter:blur(15px) saturate(1.3); border:1px solid rgba(255,255,255,.64); box-shadow:0 28px 58px -28px rgba(70,60,48,.52), inset 0 1px 0 rgba(255,255,255,.9); display:flex; flex-direction:column; overflow:hidden; transition:{{ animTrans }};">
+        <div onMouseDown="{{ panels.world.resize }}" title="drag to resize" style="position:absolute; right:2px; bottom:2px; width:18px; height:18px; cursor:nwse-resize; z-index:6; border-right:2px solid rgba(59,55,47,.3); border-bottom:2px solid rgba(59,55,47,.3); border-bottom-right-radius:8px;"></div>
+        <div onMouseDown="{{ dragH.world }}" style="cursor:grab; padding:13px 22px 9px; display:flex; align-items:center; justify-content:space-between;">
+          <span style="font-family:'JetBrains Mono',monospace; font-size:11px; letter-spacing:.18em; color:rgba(46,43,36,.55);">OSCILLATION · STATE ESTIMATE</span>
+          <button onMouseDown="{{ stopProp }}" onClick="{{ closeH.world }}" style="cursor:pointer; background:none; border:none; color:rgba(46,43,36,.4); font-size:15px; line-height:1; padding:2px 4px;" style-hover="color:#2e2b24;">×</button>
+        </div>
+        <div style="flex:1; min-height:0; padding:4px 22px 16px; display:flex; flex-direction:column;">
+          <div style="height:3px; background:rgba(59,55,47,.12); position:relative; overflow:hidden; border-radius:2px;"><div style="position:absolute; left:0; top:0; bottom:0; width:{{ progressPct }}; background:linear-gradient(90deg,#ab8b52,#6f8466);"></div></div>
+          <div style="position:relative; margin-top:14px; flex:1; min-height:90px;">
+            <svg viewBox="0 0 680 220" preserveAspectRatio="none" style="width:100%; height:100%; display:block;">
+              <line x1="0" y1="18" x2="680" y2="18" stroke="rgba(59,55,47,.14)" stroke-dasharray="3 5"/>
+              <line x1="0" y1="196" x2="680" y2="196" stroke="rgba(59,55,47,.14)" stroke-dasharray="3 5"/>
+              <sc-if value="{{ baseFired }}" hint-placeholder-val="{{ false }}"><line x1="{{ baseMarkX }}" y1="6" x2="{{ baseMarkX }}" y2="214" stroke="rgba(59,55,47,.3)" stroke-dasharray="2 4"/></sc-if>
+              <sc-if value="{{ oursFired }}" hint-placeholder-val="{{ false }}"><line x1="{{ oursMarkX }}" y1="6" x2="{{ oursMarkX }}" y2="214" stroke="rgba(86,110,75,.65)"/></sc-if>
+              <path d="{{ basePath }}" fill="none" stroke="rgba(59,55,47,.42)" stroke-width="1.8" stroke-linejoin="round"/>
+              <path d="{{ ourPath }}" fill="none" stroke="#566e4b" stroke-width="2.6" stroke-linejoin="round"/>
+            </svg>
+            <div style="position:absolute; right:2px; top:-4px; font-family:'JetBrains Mono',monospace; font-size:10.5px; color:rgba(46,43,36,.5);">blue</div>
+            <div style="position:absolute; right:2px; bottom:16px; font-family:'JetBrains Mono',monospace; font-size:10.5px; color:rgba(46,43,36,.5);">colorless</div>
+          </div>
+          <div style="display:flex; gap:22px; font-family:'JetBrains Mono',monospace; font-size:11px; margin-top:8px;">
+            <span style="color:#566e4b;">— blue intensity · live</span>
+            <span style="color:rgba(46,43,36,.55);">— midline</span>
+          </div>
+          <div style="display:grid; grid-template-columns:1.3fr 1fr 1fr; margin-top:18px; border-top:1px solid rgba(59,55,47,.12); padding-top:16px;">
+            <div style="padding-right:22px; border-right:1px solid rgba(59,55,47,.12);">
+              <div style="font-family:'JetBrains Mono',monospace; font-size:11px; color:rgba(46,43,36,.55);">amplitude</div>
+              <div style="display:flex; align-items:baseline; gap:5px; margin-top:8px;"><span style="font-family:'JetBrains Mono',monospace; font-size:36px; font-weight:600; line-height:1; color:#2e2b24;">{{ superPct }}</span><span style="font-family:'JetBrains Mono',monospace; font-size:16px; color:rgba(46,43,36,.5);">%</span></div>
+              <div style="height:4px; background:rgba(59,55,47,.12); margin-top:11px; overflow:hidden; border-radius:2px;"><div style="height:100%; width:{{ superW }}; background:linear-gradient(90deg,#847ea6,#6f8466);"></div></div>
+            </div>
+            <div style="padding:0 22px; border-right:1px solid rgba(59,55,47,.12);">
+              <div style="font-family:'JetBrains Mono',monospace; font-size:11px; color:rgba(46,43,36,.55);">half-period</div>
+              <div style="margin-top:8px;"><span style="font-family:'JetBrains Mono',monospace; font-size:36px; font-weight:600; line-height:1; color:#847ea6;">{{ titerTxt }}</span></div>
+              <div style="font-family:'JetBrains Mono',monospace; font-size:10.5px; color:rgba(46,43,36,.5); margin-top:11px;">s · between flips</div>
+            </div>
+            <div style="padding-left:22px;">
+              <div style="font-family:'JetBrains Mono',monospace; font-size:11px; color:rgba(46,43,36,.55);">stall risk</div>
+              <div style="display:flex; align-items:baseline; gap:5px; margin-top:8px;"><span style="font-family:'JetBrains Mono',monospace; font-size:36px; font-weight:600; line-height:1; color:{{ hazColor }};">{{ hazPct }}</span><span style="font-family:'JetBrains Mono',monospace; font-size:16px; color:rgba(46,43,36,.5);">%</span></div>
+              <div style="height:4px; background:rgba(59,55,47,.12); margin-top:11px; overflow:hidden; border-radius:2px;"><div style="height:100%; width:{{ hazW }}; background:{{ hazColor }};"></div></div>
+            </div>
+          </div>
+          <div style="margin-top:14px; display:flex; border-top:1px solid rgba(59,55,47,.12); padding-top:13px; font-family:'JetBrains Mono',monospace;">
+            <sc-for list="{{ telemetry }}" as="tm" hint-placeholder-count="6"><div style="flex:1; padding:0 13px; border-right:1px solid rgba(59,55,47,.1);"><div style="font-size:10px; color:rgba(46,43,36,.5);">{{ tm.k }}</div><div style="font-size:15px; font-weight:500; margin-top:5px; color:{{ tm.c }};">{{ tm.v }}</div></div></sc-for>
+          </div>
+        </div>
+      </div>
+      </sc-if>
+
+      <!-- NARRATION -->
+      <sc-if value="{{ panels.narr.open }}" hint-placeholder-val="{{ true }}">
+      <div style="position:absolute; left:0; top:0; width:{{ panels.narr.w }}; height:{{ panels.narr.h }}; transform:{{ panels.narr.tf }}; z-index:{{ panels.narr.z }}; border-radius:20px; background:linear-gradient(150deg, rgba(254,251,246,.72), rgba(247,242,233,.5)); -webkit-backdrop-filter:blur(14px) saturate(1.3); backdrop-filter:blur(14px) saturate(1.3); border:1px solid rgba(255,255,255,.62); box-shadow:0 24px 50px -26px rgba(70,60,48,.5), inset 0 1px 0 rgba(255,255,255,.85); display:flex; flex-direction:column; overflow:hidden; transition:{{ animTrans }};">
+        <div onMouseDown="{{ panels.narr.resize }}" title="drag to resize" style="position:absolute; right:2px; bottom:2px; width:18px; height:18px; cursor:nwse-resize; z-index:6; border-right:2px solid rgba(59,55,47,.3); border-bottom:2px solid rgba(59,55,47,.3); border-bottom-right-radius:8px;"></div>
+        <div onMouseDown="{{ dragH.narr }}" style="cursor:grab; padding:13px 18px 9px; display:flex; align-items:center; justify-content:space-between;">
+          <span style="font-family:'JetBrains Mono',monospace; font-size:11px; letter-spacing:.18em; color:rgba(46,43,36,.55);">NARRATION</span>
+          <button onMouseDown="{{ stopProp }}" onClick="{{ closeH.narr }}" style="cursor:pointer; background:none; border:none; color:rgba(46,43,36,.4); font-size:15px; line-height:1; padding:2px 4px;" style-hover="color:#2e2b24;">×</button>
+        </div>
+        <div style="padding:6px 18px 14px; border-bottom:1px solid rgba(59,55,47,.12);">
+          <div style="font-family:'JetBrains Mono',monospace; font-size:11px; color:rgba(46,43,36,.55);">cycles · oscillations</div>
+          <div style="display:flex; align-items:baseline; gap:11px; margin-top:6px;">
+            <span style="font-family:'JetBrains Mono',monospace; font-size:42px; font-weight:700; line-height:.92; color:#566e4b;">{{ rewardTxt }}</span>
+            <span style="font-family:'JetBrains Mono',monospace; font-size:14px; color:#94762f;">{{ lastYieldTxt }}</span>
+          </div>
+        </div>
+        <div style="flex:1; min-height:0; overflow-y:auto; padding:14px 18px; display:flex; flex-direction:column; gap:14px;">
+          <sc-for list="{{ narrFeed }}" as="m" hint-placeholder-count="6">
+            <div style="display:flex; gap:11px;">
+              <span style="margin-top:6px; flex:none; width:6px; height:6px; border-radius:50%; background:{{ m.color }};"></span>
+              <span style="font-size:{{ m.size }}; line-height:1.5; color:{{ m.color }}; font-weight:{{ m.weight }};">{{ m.txt }}</span>
+            </div>
+          </sc-for>
+        </div>
+      </div>
+      </sc-if>
+
+      <!-- MANUAL CONSOLE -->
+      <sc-if value="{{ panels.manual.open }}" hint-placeholder-val="{{ true }}">
+      <div style="position:absolute; left:0; top:0; width:{{ panels.manual.w }}; height:{{ panels.manual.h }}; transform:{{ panels.manual.tf }}; z-index:{{ panels.manual.z }}; border-radius:20px; background:linear-gradient(150deg, rgba(254,251,246,.74), rgba(247,242,233,.52)); -webkit-backdrop-filter:blur(15px) saturate(1.3); backdrop-filter:blur(15px) saturate(1.3); border:1px solid rgba(255,255,255,.64); box-shadow:0 26px 54px -28px rgba(70,60,48,.5), inset 0 1px 0 rgba(255,255,255,.88); display:flex; flex-direction:column; overflow:hidden; transition:{{ animTrans }};">
+        <div onMouseDown="{{ panels.manual.resize }}" title="drag to resize" style="position:absolute; right:2px; bottom:2px; width:18px; height:18px; cursor:nwse-resize; z-index:6; border-right:2px solid rgba(59,55,47,.3); border-bottom:2px solid rgba(59,55,47,.3); border-bottom-right-radius:8px;"></div>
+        <div onMouseDown="{{ dragH.manual }}" style="cursor:grab; padding:13px 18px 9px; display:flex; align-items:center; justify-content:space-between;">
+          <span style="font-family:'JetBrains Mono',monospace; font-size:11px; letter-spacing:.18em; color:rgba(46,43,36,.55);">MANUAL CONSOLE</span>
+          <div style="display:flex; align-items:center; gap:10px;">
+            <div style="display:flex; font-family:'JetBrains Mono',monospace; font-size:11.5px; border:1px solid rgba(59,55,47,.22); border-radius:8px; overflow:hidden;">
+              <button onMouseDown="{{ stopProp }}" onClick="{{ setAuto }}" style="cursor:pointer; border:none; padding:5px 12px; font:inherit; background:{{ autoSegBg }}; color:{{ autoSegColor }};">AUTO</button>
+              <button onMouseDown="{{ stopProp }}" onClick="{{ setManual }}" style="cursor:pointer; border:none; padding:5px 12px; font:inherit; background:{{ manSegBg }}; color:{{ manSegColor }};">MANUAL</button>
+            </div>
+            <button onMouseDown="{{ stopProp }}" onClick="{{ closeH.manual }}" style="cursor:pointer; background:none; border:none; color:rgba(46,43,36,.4); font-size:15px; line-height:1; padding:2px 4px;" style-hover="color:#2e2b24;">×</button>
+          </div>
+        </div>
+        <div style="flex:1; min-height:0; overflow-y:auto; padding:10px 18px 16px; display:flex; flex-direction:column; gap:13px;">
+          <div style="display:flex; justify-content:space-around; opacity:{{ knobsOpacity }};">
+            <div style="display:flex; flex-direction:column; align-items:center; gap:6px;">
+              <span style="font-family:'JetBrains Mono',monospace; font-size:10.5px; color:rgba(46,43,36,.6);">STIRRER</span>
+              <div onMouseDown="{{ knobCool }}" title="drag up / down" style="position:relative; width:36px; height:100px; border-radius:12px; cursor:ns-resize; overflow:hidden; background:linear-gradient(180deg, rgba(255,255,255,.42), rgba(224,216,200,.22)); border:1px solid rgba(59,55,47,.22); box-shadow:inset 0 2px 5px rgba(255,255,255,.7), 0 6px 14px -7px rgba(70,60,48,.45);">
+                <div style="position:absolute; inset:0; background:repeating-linear-gradient(0deg, rgba(59,55,47,.07) 0 1px, transparent 1px 13px); pointer-events:none;"></div>
+                <div style="position:absolute; left:0; right:0; bottom:0; height:{{ stirFill }}; background:linear-gradient(180deg, #5f7fb0, #6f8466); box-shadow:0 -2px 16px rgba(95,127,176,.55); transition:height .1s ease;"></div>
+                <div style="position:absolute; left:0; right:0; bottom:calc({{ stirFill }} - 1.5px); height:3px; background:rgba(255,255,255,.9); box-shadow:0 0 8px rgba(255,255,255,.85); pointer-events:none;"></div>
+              </div>
+              <input type="number" step="0.05" value="{{ coolVal }}" onMouseDown="{{ stopProp }}" onInput="{{ setCool }}" style="width:62px; text-align:center; background:rgba(255,255,255,.45); border:1px solid rgba(59,55,47,.2); border-radius:7px; padding:4px; font-family:'JetBrains Mono',monospace; font-size:13px; color:#2e2b24; outline:none;" />
+            </div>
+            <div style="display:flex; flex-direction:column; align-items:center; gap:6px;">
+              <span style="font-family:'JetBrains Mono',monospace; font-size:10.5px; color:rgba(46,43,36,.6);">GLUCOSE ms</span>
+              <div onMouseDown="{{ knobMoi }}" title="drag up / down" style="position:relative; width:36px; height:100px; border-radius:12px; cursor:ns-resize; overflow:hidden; background:linear-gradient(180deg, rgba(255,255,255,.42), rgba(224,216,200,.22)); border:1px solid rgba(59,55,47,.22); box-shadow:inset 0 2px 5px rgba(255,255,255,.7), 0 6px 14px -7px rgba(70,60,48,.45);">
+                <div style="position:absolute; inset:0; background:repeating-linear-gradient(0deg, rgba(59,55,47,.07) 0 1px, transparent 1px 13px); pointer-events:none;"></div>
+                <div style="position:absolute; left:0; right:0; bottom:0; height:{{ gluFill }}; background:linear-gradient(180deg, #5f7fb0, #6f8466); box-shadow:0 -2px 16px rgba(95,127,176,.55); transition:height .1s ease;"></div>
+                <div style="position:absolute; left:0; right:0; bottom:calc({{ gluFill }} - 1.5px); height:3px; background:rgba(255,255,255,.9); box-shadow:0 0 8px rgba(255,255,255,.85); pointer-events:none;"></div>
+              </div>
+              <input type="number" step="1" value="{{ moiVal }}" onMouseDown="{{ stopProp }}" onInput="{{ setMoi }}" style="width:62px; text-align:center; background:rgba(255,255,255,.45); border:1px solid rgba(59,55,47,.2); border-radius:7px; padding:4px; font-family:'JetBrains Mono',monospace; font-size:13px; color:#2e2b24; outline:none;" />
+            </div>
+            <div style="display:flex; flex-direction:column; align-items:center; gap:6px;">
+              <span style="font-family:'JetBrains Mono',monospace; font-size:10.5px; color:rgba(46,43,36,.6);">PULSE @ amp%</span>
+              <div onMouseDown="{{ knobThr }}" title="drag up / down" style="position:relative; width:36px; height:100px; border-radius:12px; cursor:ns-resize; overflow:hidden; background:linear-gradient(180deg, rgba(255,255,255,.42), rgba(224,216,200,.22)); border:1px solid rgba(59,55,47,.22); box-shadow:inset 0 2px 5px rgba(255,255,255,.7), 0 6px 14px -7px rgba(70,60,48,.45);">
+                <div style="position:absolute; inset:0; background:repeating-linear-gradient(0deg, rgba(59,55,47,.07) 0 1px, transparent 1px 13px); pointer-events:none;"></div>
+                <div style="position:absolute; left:0; right:0; bottom:0; height:{{ ampFill }}; background:linear-gradient(180deg, #5f7fb0, #6f8466); box-shadow:0 -2px 16px rgba(95,127,176,.55); transition:height .1s ease;"></div>
+                <div style="position:absolute; left:0; right:0; bottom:calc({{ ampFill }} - 1.5px); height:3px; background:rgba(255,255,255,.9); box-shadow:0 0 8px rgba(255,255,255,.85); pointer-events:none;"></div>
+              </div>
+              <input type="number" step="1" value="{{ thrVal }}" onMouseDown="{{ stopProp }}" onInput="{{ setThr }}" style="width:62px; text-align:center; background:rgba(255,255,255,.45); border:1px solid rgba(59,55,47,.2); border-radius:7px; padding:4px; font-family:'JetBrains Mono',monospace; font-size:13px; color:#2e2b24; outline:none;" />
+            </div>
+          </div>
+          <div style="border-top:1px solid rgba(59,55,47,.12); padding-top:11px;">
+            <div style="font-family:'JetBrains Mono',monospace; font-size:10.5px; color:rgba(46,43,36,.55); margin-bottom:8px;">ACTUATORS</div>
+            <div style="display:flex; align-items:center; gap:10px; flex-wrap:wrap;">
+              <button onMouseDown="{{ stopProp }}" onClick="{{ pulseNaoh }}" style="cursor:pointer; border:1px solid rgba(148,118,47,.4); border-radius:8px; padding:6px 12px; font-family:'JetBrains Mono',monospace; font-size:11.5px; background:{{ naohBg }}; color:{{ naohColor }};" style-hover="border-color:#94762f;">NaOH pulse</button>
+              <div style="display:flex; align-items:center; gap:7px; flex:1; min-width:130px;">
+                <span style="font-family:'JetBrains Mono',monospace; font-size:10.5px; color:rgba(46,43,36,.55);">LIGHT</span>
+                <input type="range" min="0" max="255" value="{{ lightVal }}" onMouseDown="{{ stopProp }}" onInput="{{ setLight }}" style="flex:1; accent-color:#6f8466; cursor:pointer;" />
+                <span style="font-family:'JetBrains Mono',monospace; font-size:11px; color:rgba(46,43,36,.7); width:38px; text-align:right;">{{ lightPct }}</span>
+              </div>
+              <button onMouseDown="{{ stopProp }}" onClick="{{ recalibrateSensor }}" title="Aim the sensor at white first" style="cursor:pointer; border:1px solid rgba(59,55,47,.22); border-radius:8px; padding:6px 12px; font-family:'JetBrains Mono',monospace; font-size:11.5px; background:rgba(255,255,255,.4); color:rgba(46,43,36,.8);" style-hover="border-color:rgba(59,55,47,.4);">recalibrate {{ calibTxt }}</button>
+            </div>
+          </div>
+          <div style="border-top:1px solid rgba(59,55,47,.12); padding-top:11px;">
+            <div style="font-family:'JetBrains Mono',monospace; font-size:10.5px; color:rgba(46,43,36,.55); margin-bottom:8px;">PREDICTED OUTCOME · world model</div>
+            <div style="display:grid; grid-template-columns:1fr 1fr 1fr 1fr; gap:10px; font-family:'JetBrains Mono',monospace;">
+              <div><div style="font-size:10px; color:rgba(46,43,36,.52);">half-p</div><div style="font-size:17px; font-weight:600; margin-top:3px; color:#2e2b24;">{{ predFireTxt }}</div></div>
+              <div><div style="font-size:10px; color:rgba(46,43,36,.52);">amp</div><div style="font-size:17px; font-weight:600; margin-top:3px; color:#2e2b24;">{{ predSolidTxt }}</div></div>
+              <div><div style="font-size:10px; color:rgba(46,43,36,.52);">period</div><div style="font-size:17px; font-weight:600; margin-top:3px; color:#566e4b;">{{ predYTxt }}</div></div>
+              <div><div style="font-size:10px; color:rgba(46,43,36,.52);">stall</div><div style="font-size:17px; font-weight:600; margin-top:3px; color:{{ predHzColor }};">{{ predHzTxt }}</div></div>
+            </div>
+          </div>
+          <div style="border-top:1px solid rgba(59,55,47,.12); padding-top:11px;">
+            <div style="display:flex; align-items:center; justify-content:space-between; margin-bottom:9px;">
+              <span style="font-family:'JetBrains Mono',monospace; font-size:10.5px; color:rgba(46,43,36,.55);">SOLVE FOR HALF-PERIOD</span>
+              <div style="display:flex; font-family:'JetBrains Mono',monospace; font-size:10.5px; border:1px solid rgba(59,55,47,.2); border-radius:7px; overflow:hidden;">
+                <button onMouseDown="{{ stopProp }}" onClick="{{ setSolveEq }}" style="cursor:pointer; border:none; padding:4px 9px; font:inherit; background:{{ solveEqBg }}; color:{{ solveEqColor }};">hold period</button>
+                <button onMouseDown="{{ stopProp }}" onClick="{{ setSolveEnergy }}" style="cursor:pointer; border:none; padding:4px 9px; font:inherit; background:{{ solveEnBg }}; color:{{ solveEnColor }};">min stir</button>
+              </div>
+            </div>
+            <div style="display:flex; align-items:center; gap:10px;">
+              <input type="number" step="50" value="{{ targetVal }}" onMouseDown="{{ stopProp }}" onInput="{{ setTarget }}" style="width:78px; text-align:center; background:rgba(255,255,255,.5); border:1px solid rgba(59,55,47,.2); border-radius:8px; padding:7px; font-family:'JetBrains Mono',monospace; font-size:14px; color:#2e2b24; outline:none;" />
+              <span style="flex:1; font-size:12px; line-height:1.4; color:rgba(46,43,36,.8);">{{ solveTxt }}</span>
+              <button onMouseDown="{{ stopProp }}" onClick="{{ applySolve }}" style="cursor:pointer; flex:none; background:#6f8466; border:none; border-radius:8px; padding:7px 13px; font-family:'JetBrains Mono',monospace; font-size:12px; font-weight:600; color:#fbf8f2;" style-hover="background:#566e4b;">apply</button>
+            </div>
+          </div>
+        </div>
+      </div>
+      </sc-if>
+
+      <!-- CALCULATOR -->
+      <sc-if value="{{ panels.calc.open }}" hint-placeholder-val="{{ true }}">
+      <div style="position:absolute; left:0; top:0; width:{{ panels.calc.w }}; height:{{ panels.calc.h }}; transform:{{ panels.calc.tf }}; z-index:{{ panels.calc.z }}; border-radius:20px; background:linear-gradient(150deg, rgba(254,251,246,.74), rgba(247,242,233,.52)); -webkit-backdrop-filter:blur(15px) saturate(1.3); backdrop-filter:blur(15px) saturate(1.3); border:1px solid rgba(255,255,255,.64); box-shadow:0 26px 54px -28px rgba(70,60,48,.5), inset 0 1px 0 rgba(255,255,255,.88); display:flex; flex-direction:column; overflow:hidden; transition:{{ animTrans }};">
+        <div onMouseDown="{{ panels.calc.resize }}" title="drag to resize" style="position:absolute; right:2px; bottom:2px; width:18px; height:18px; cursor:nwse-resize; z-index:6; border-right:2px solid rgba(59,55,47,.3); border-bottom:2px solid rgba(59,55,47,.3); border-bottom-right-radius:8px;"></div>
+        <div onMouseDown="{{ dragH.calc }}" style="cursor:grab; padding:13px 16px 9px; display:flex; align-items:center; justify-content:space-between;">
+          <span style="font-family:'JetBrains Mono',monospace; font-size:11px; letter-spacing:.18em; color:rgba(46,43,36,.55);">CALCULATOR</span>
+          <div style="display:flex; gap:13px; align-items:baseline; font-family:'JetBrains Mono',monospace; font-size:11px; letter-spacing:.12em;">
+            <button onMouseDown="{{ stopProp }}" onClick="{{ calcKeysTab }}" style="cursor:pointer; background:none; border:none; padding:0; font:inherit; letter-spacing:.12em; color:{{ calcKeysColor }};">123</button>
+            <button onMouseDown="{{ stopProp }}" onClick="{{ calcFxTab }}" style="cursor:pointer; background:none; border:none; padding:0; font:inherit; letter-spacing:.12em; color:{{ calcFxColor }};">ƒx</button>
+            <button onMouseDown="{{ stopProp }}" onClick="{{ closeH.calc }}" style="cursor:pointer; background:none; border:none; color:rgba(46,43,36,.4); font-size:15px; line-height:1; padding:0 2px;" style-hover="color:#2e2b24;">×</button>
+          </div>
+        </div>
+        <div style="flex:1; min-height:0; padding:4px 14px 14px; display:flex; flex-direction:column;">
+          <sc-if value="{{ calcKeysMode }}" hint-placeholder-val="{{ true }}">
+          <div style="display:flex; flex-direction:column; flex:1; min-height:0;">
+            <div style="display:flex; align-items:center; gap:6px;">
+              <button onClick="{{ calcClear }}" style="cursor:pointer; border:1px solid rgba(59,55,47,.14); border-radius:8px; padding:4px 10px; font-family:'JetBrains Mono',monospace; font-size:12px; color:rgba(46,43,36,.7); background:rgba(59,55,47,.06);">C</button>
+              <button onClick="{{ calcBack }}" style="cursor:pointer; border:1px solid rgba(59,55,47,.14); border-radius:8px; padding:4px 10px; font-family:'JetBrains Mono',monospace; font-size:12px; color:rgba(46,43,36,.7); background:rgba(59,55,47,.06);">⌫</button>
+              <div style="flex:1; text-align:right; font-family:'JetBrains Mono',monospace; font-size:24px; font-weight:600; color:#2e2b24; overflow:hidden; white-space:nowrap;">{{ calcDisplay }}</div>
+            </div>
+            <div style="flex:1; display:grid; grid-template-columns:1fr 1fr 1fr 1fr; gap:6px; margin-top:10px;">
+              <sc-for list="{{ calcKeys }}" as="k" hint-placeholder-count="20"><button onClick="{{ k.h }}" style="cursor:pointer; border:1px solid rgba(59,55,47,.14); border-radius:9px; font-family:'JetBrains Mono',monospace; font-size:16px; font-weight:500; color:{{ k.c }}; background:{{ k.bg }};" style-hover="border-color:rgba(59,55,47,.34);">{{ k.l }}</button></sc-for>
+            </div>
+          </div>
+          </sc-if>
+          <sc-if value="{{ eqLibMode }}" hint-placeholder-val="{{ false }}">
+          <div style="flex:1; min-height:0; overflow-y:auto; display:flex; flex-direction:column; gap:7px;">
+            <div style="font-family:'JetBrains Mono',monospace; font-size:10.5px; color:rgba(46,43,36,.5); margin:2px 2px 4px;">REACTION EQUATIONS · tap to open</div>
+            <sc-for list="{{ eqList }}" as="e" hint-placeholder-count="8">
+              <button onMouseDown="{{ stopProp }}" onClick="{{ e.sel }}" style="cursor:pointer; text-align:left; border:1px solid rgba(59,55,47,.13); border-radius:11px; padding:10px 12px; background:rgba(255,255,255,.36);" style-hover="border-color:#6f8466; background:rgba(111,132,102,.12);">
+                <div style="font-family:'JetBrains Mono',monospace; font-size:12.5px; color:#2e2b24;">{{ e.name }}</div>
+                <div style="font-family:'JetBrains Mono',monospace; font-size:10.5px; color:rgba(46,43,36,.5); margin-top:3px;">{{ e.expr }}</div>
+              </button>
+            </sc-for>
+          </div>
+          </sc-if>
+          <sc-if value="{{ eqDetailMode }}" hint-placeholder-val="{{ false }}">
+          <div style="flex:1; min-height:0; overflow-y:auto; display:flex; flex-direction:column;">
+            <div style="display:flex; align-items:center; gap:9px; margin-bottom:8px;">
+              <button onMouseDown="{{ stopProp }}" onClick="{{ eqBack }}" style="cursor:pointer; background:none; border:1px solid rgba(59,55,47,.2); border-radius:8px; padding:4px 9px; font-family:'JetBrains Mono',monospace; font-size:12px; color:rgba(46,43,36,.7);" style-hover="border-color:rgba(59,55,47,.4);">← all</button>
+              <span style="font-family:'JetBrains Mono',monospace; font-size:13px; font-weight:600; color:#2e2b24;">{{ eqName }}</span>
+            </div>
+            <div style="font-family:'JetBrains Mono',monospace; font-size:11px; color:#566e4b; margin-bottom:5px;">{{ eqExpr }}</div>
+            <div style="font-size:12px; line-height:1.5; color:rgba(46,43,36,.7); margin-bottom:13px;">{{ eqDesc }}</div>
+            <sc-if value="{{ eqNormal }}" hint-placeholder-val="{{ true }}">
+            <div style="display:flex; flex-direction:column; gap:9px;">
+              <sc-for list="{{ eqFields }}" as="fd" hint-placeholder-count="2">
+                <div style="display:flex; align-items:center; gap:10px;">
+                  <span style="flex:none; width:92px; font-family:'JetBrains Mono',monospace; font-size:12px; color:rgba(46,43,36,.7);">{{ fd.label }}</span>
+                  <input type="number" value="{{ fd.val }}" onMouseDown="{{ stopProp }}" onInput="{{ fd.h }}" style="flex:1; min-width:0; background:rgba(255,255,255,.55); border:1px solid rgba(59,55,47,.2); border-radius:8px; padding:8px 10px; font-family:'JetBrains Mono',monospace; font-size:13px; color:#2e2b24; outline:none;" />
+                  <span style="flex:none; width:64px; font-family:'JetBrains Mono',monospace; font-size:10.5px; color:rgba(46,43,36,.5);">{{ fd.unit }}</span>
+                </div>
+              </sc-for>
+            </div>
+            <div style="display:flex; align-items:baseline; justify-content:space-between; margin-top:16px; border-top:1px solid rgba(59,55,47,.12); padding-top:13px;">
+              <span style="font-family:'JetBrains Mono',monospace; font-size:11px; color:rgba(46,43,36,.55);">result</span>
+              <span><span style="font-family:'JetBrains Mono',monospace; font-size:26px; font-weight:600; color:#2e2b24;">{{ eqResult }}</span>&nbsp;<span style="font-family:'JetBrains Mono',monospace; font-size:13px; color:rgba(46,43,36,.55);">{{ eqUnit }}</span></span>
+            </div>
+            </sc-if>
+            <sc-if value="{{ eqConv }}" hint-placeholder-val="{{ false }}">
+            <div style="display:flex; align-items:flex-end; gap:12px;">
+              <div style="flex:1;">
+                <div style="font-family:'JetBrains Mono',monospace; font-size:10.5px; color:rgba(46,43,36,.55); margin-bottom:5px;">Celsius °C</div>
+                <input type="number" value="{{ eqTempC }}" onMouseDown="{{ stopProp }}" onInput="{{ setTempC }}" style="width:100%; background:rgba(255,255,255,.55); border:1px solid rgba(59,55,47,.2); border-radius:8px; padding:9px 10px; font-family:'JetBrains Mono',monospace; font-size:15px; color:#2e2b24; outline:none;" />
+              </div>
+              <span style="font-family:'JetBrains Mono',monospace; font-size:16px; color:rgba(46,43,36,.4); padding-bottom:9px;">⇄</span>
+              <div style="flex:1;">
+                <div style="font-family:'JetBrains Mono',monospace; font-size:10.5px; color:rgba(46,43,36,.55); margin-bottom:5px;">Fahrenheit °F</div>
+                <input type="number" value="{{ eqTempF }}" onMouseDown="{{ stopProp }}" onInput="{{ setTempF }}" style="width:100%; background:rgba(255,255,255,.55); border:1px solid rgba(59,55,47,.2); border-radius:8px; padding:9px 10px; font-family:'JetBrains Mono',monospace; font-size:15px; color:#2e2b24; outline:none;" />
+              </div>
+            </div>
+            </sc-if>
+            <button onMouseDown="{{ stopProp }}" onClick="{{ eqClear }}" style="cursor:pointer; align-self:flex-start; margin-top:16px; background:rgba(59,55,47,.06); border:1px solid rgba(59,55,47,.16); border-radius:8px; padding:7px 14px; font-family:'JetBrains Mono',monospace; font-size:12px; color:rgba(46,43,36,.7);" style-hover="border-color:rgba(59,55,47,.36);">clear</button>
+          </div>
+          </sc-if>
+        </div>
+      </div>
+      </sc-if>
+
+      <!-- ASK PHAGE -->
+      <sc-if value="{{ panels.ask.open }}" hint-placeholder-val="{{ true }}">
+      <div style="position:absolute; left:0; top:0; width:{{ panels.ask.w }}; height:{{ panels.ask.h }}; transform:{{ panels.ask.tf }}; z-index:{{ panels.ask.z }}; border-radius:20px; background:linear-gradient(150deg, rgba(254,251,246,.74), rgba(247,242,233,.52)); -webkit-backdrop-filter:blur(15px) saturate(1.3); backdrop-filter:blur(15px) saturate(1.3); border:1px solid rgba(255,255,255,.64); box-shadow:0 26px 54px -28px rgba(70,60,48,.5), inset 0 1px 0 rgba(255,255,255,.88); display:flex; flex-direction:column; overflow:hidden; transition:{{ animTrans }};">
+        <div onMouseDown="{{ panels.ask.resize }}" title="drag to resize" style="position:absolute; right:2px; bottom:2px; width:18px; height:18px; cursor:nwse-resize; z-index:6; border-right:2px solid rgba(59,55,47,.3); border-bottom:2px solid rgba(59,55,47,.3); border-bottom-right-radius:8px;"></div>
+        <div onMouseDown="{{ dragH.ask }}" style="cursor:grab; padding:13px 20px 9px; display:flex; align-items:center; justify-content:space-between;">
+          <span style="font-family:'JetBrains Mono',monospace; font-size:11px; letter-spacing:.18em; color:rgba(46,43,36,.55);">ASK PHAGE</span>
+          <button onMouseDown="{{ stopProp }}" onClick="{{ closeH.ask }}" style="cursor:pointer; background:none; border:none; color:rgba(46,43,36,.4); font-size:15px; line-height:1; padding:2px 4px;" style-hover="color:#2e2b24;">×</button>
+        </div>
+        <div ref="{{ chatRef }}" style="flex:1; min-height:0; overflow-y:auto; padding:8px 20px; display:flex; flex-direction:column; gap:11px;">
+          <sc-for list="{{ chatMsgs }}" as="c" hint-placeholder-count="2">
+            <div style="align-self:{{ c.align }}; max-width:82%; background:{{ c.bg }}; color:{{ c.color }}; border-radius:14px; padding:9px 14px; font-size:13.5px; line-height:1.5;">{{ c.text }}</div>
+          </sc-for>
+        </div>
+        <div style="padding:8px 16px 12px;">
+          <div style="display:flex; gap:7px; margin-bottom:9px; flex-wrap:wrap;">
+            <sc-for list="{{ chips }}" as="ch" hint-placeholder-count="3"><button onMouseDown="{{ stopProp }}" onClick="{{ ch.h }}" style="cursor:pointer; background:rgba(111,132,102,.12); border:1px solid rgba(111,132,102,.28); border-radius:20px; padding:6px 13px; font-family:'JetBrains Mono',monospace; font-size:11.5px; color:#566e4b;" style-hover="background:rgba(111,132,102,.2);">{{ ch.l }}</button></sc-for>
+          </div>
+          <div style="display:flex; gap:9px; align-items:center;">
+            <input value="{{ chatInput }}" onMouseDown="{{ stopProp }}" onInput="{{ setChatInput }}" onKeyDown="{{ chatKey }}" placeholder="Ask about this run…" style="flex:1; background:rgba(255,255,255,.45); border:1px solid rgba(59,55,47,.2); border-radius:11px; padding:11px 14px; font-size:13.5px; color:#2e2b24; outline:none;" />
+            <button onMouseDown="{{ stopProp }}" onClick="{{ sendChat }}" style="cursor:pointer; border:none; border-radius:11px; padding:11px 17px; font-family:'JetBrains Mono',monospace; font-size:13px; font-weight:600; color:#fbf8f2; background:#6f8466;" style-hover="background:#566e4b;">send</button>
+          </div>
+        </div>
+      </div>
+      </sc-if>
+
+      <!-- RUNS -->
+      <sc-if value="{{ panels.runs.open }}" hint-placeholder-val="{{ false }}">
+      <div style="position:absolute; left:0; top:0; width:{{ panels.runs.w }}; height:{{ panels.runs.h }}; transform:{{ panels.runs.tf }}; z-index:{{ panels.runs.z }}; border-radius:20px; background:linear-gradient(150deg, rgba(254,251,246,.74), rgba(247,242,233,.52)); -webkit-backdrop-filter:blur(15px) saturate(1.3); backdrop-filter:blur(15px) saturate(1.3); border:1px solid rgba(255,255,255,.64); box-shadow:0 26px 54px -28px rgba(70,60,48,.5), inset 0 1px 0 rgba(255,255,255,.88); display:flex; flex-direction:column; overflow:hidden; transition:{{ animTrans }};">
+        <div onMouseDown="{{ panels.runs.resize }}" title="drag to resize" style="position:absolute; right:2px; bottom:2px; width:18px; height:18px; cursor:nwse-resize; z-index:6; border-right:2px solid rgba(59,55,47,.3); border-bottom:2px solid rgba(59,55,47,.3); border-bottom-right-radius:8px;"></div>
+        <div onMouseDown="{{ dragH.runs }}" style="cursor:grab; padding:13px 18px 9px; display:flex; align-items:center; justify-content:space-between;">
+          <span style="font-family:'JetBrains Mono',monospace; font-size:11px; letter-spacing:.18em; color:rgba(46,43,36,.55);">RUNS</span>
+          <div style="display:flex; align-items:center; gap:10px;">
+            <button onMouseDown="{{ stopProp }}" onClick="{{ addRun }}" style="cursor:pointer; background:rgba(111,132,102,.14); border:1px solid rgba(111,132,102,.3); border-radius:7px; padding:4px 10px; font-family:'JetBrains Mono',monospace; font-size:11.5px; color:#566e4b;" style-hover="background:rgba(111,132,102,.24);">＋ add run</button>
+            <button onMouseDown="{{ stopProp }}" onClick="{{ closeH.runs }}" style="cursor:pointer; background:none; border:none; color:rgba(46,43,36,.4); font-size:15px; line-height:1; padding:2px 4px;" style-hover="color:#2e2b24;">×</button>
+          </div>
+        </div>
+        <div style="flex:1; min-height:0; overflow-y:auto; padding:6px 16px 14px; display:flex; flex-direction:column; gap:8px;">
+          <sc-for list="{{ runsList }}" as="r" hint-placeholder-count="4">
+            <div style="display:flex; align-items:center; gap:11px; padding:9px 11px; border-radius:11px; background:{{ r.rowBg }}; border:1px solid rgba(59,55,47,.1);">
+              <button onMouseDown="{{ stopProp }}" onClick="{{ r.recolor }}" title="recolor" style="cursor:pointer; flex:none; width:16px; height:16px; border-radius:5px; border:1px solid rgba(0,0,0,.12); background:{{ r.color }};"></button>
+              <span style="flex:1; font-family:'JetBrains Mono',monospace; font-size:13px; color:#2e2b24;">{{ r.label }}</span>
+              <span style="font-family:'JetBrains Mono',monospace; font-size:12px; color:{{ r.yieldColor }};">{{ r.yieldTxt }}</span>
+              <span style="width:7px; height:7px; border-radius:50%; background:{{ r.statusDot }};"></span>
+            </div>
+          </sc-for>
+        </div>
+      </div>
+      </sc-if>
+
+      <!-- DOCK RAIL (closed tools) -->
+      <div style="position:absolute; right:10px; top:50%; transform:translateY(-50%); display:flex; flex-direction:column; gap:9px; z-index:55; align-items:flex-end;">
+        <sc-for list="{{ dockTabs }}" as="d" hint-placeholder-count="1">
+          <button onClick="{{ d.h }}" title="open" style="cursor:pointer; display:flex; align-items:center; gap:8px; background:linear-gradient(150deg, rgba(255,254,250,.62), rgba(248,243,234,.34)); -webkit-backdrop-filter:blur(12px); backdrop-filter:blur(12px); border:1px solid rgba(255,255,255,.6); border-radius:11px 0 0 11px; box-shadow:0 12px 28px -16px rgba(70,60,48,.5); padding:9px 13px; font-family:'JetBrains Mono',monospace; font-size:11px; letter-spacing:.1em; color:rgba(46,43,36,.72);" style-hover="color:#2e2b24;">
+            <span style="width:7px; height:7px; border-radius:2px; background:#6f8466;"></span>{{ d.label }}
+          </button>
+        </sc-for>
+      </div>
+
+    </div>
+    </div>
+    </div>
+    </div>
+  </div>
+
+  <!-- SETTINGS · BLUETOOTH -->
+  <sc-if value="{{ settingsOpen }}" hint-placeholder-val="{{ false }}">
+  <div onClick="{{ closeSettings }}" style="position:absolute; inset:0; z-index:90; display:flex; align-items:center; justify-content:center; background:rgba(46,43,36,.3); -webkit-backdrop-filter:blur(3px); backdrop-filter:blur(3px);">
+    <div onClick="{{ stopProp }}" style="width:440px; max-width:92%; border-radius:18px; background:linear-gradient(150deg, rgba(254,251,246,.97), rgba(247,242,233,.93)); border:1px solid rgba(255,255,255,.7); box-shadow:0 40px 80px -30px rgba(70,60,48,.6); padding:22px 24px; color:#2e2b24;">
+      <div style="display:flex; align-items:center; justify-content:space-between; margin-bottom:18px;">
+        <span style="font-family:'JetBrains Mono',monospace; font-size:12px; letter-spacing:.18em; color:rgba(46,43,36,.6);">SETTINGS · BLUETOOTH</span>
+        <button onClick="{{ closeSettings }}" style="cursor:pointer; background:none; border:none; color:rgba(46,43,36,.4); font-size:18px; line-height:1;" style-hover="color:#2e2b24;">×</button>
+      </div>
+      <div style="font-family:'JetBrains Mono',monospace; font-size:11px; color:rgba(46,43,36,.55); margin-bottom:6px;">DEVICE NAME</div>
+      <input value="{{ bleName }}" onInput="{{ setBleName }}" placeholder="Bioreactor" style="width:100%; background:rgba(255,255,255,.6); border:1px solid rgba(59,55,47,.2); border-radius:10px; padding:10px 12px; font-family:'JetBrains Mono',monospace; font-size:13px; color:#2e2b24; outline:none; margin-bottom:14px;" />
+      <div style="display:flex; gap:9px; margin-bottom:16px;">
+        <button onClick="{{ bleConnect }}" style="cursor:pointer; flex:1; background:#6f8466; border:none; border-radius:10px; padding:11px; font-family:'JetBrains Mono',monospace; font-size:12.5px; font-weight:600; color:#fbf8f2;" style-hover="background:#566e4b;">{{ bleLabel }}</button>
+        <button onClick="{{ bleReconnect }}" title="Reconnect to a previously-granted device without prompting" style="cursor:pointer; background:rgba(111,132,102,.14); border:1px solid rgba(111,132,102,.34); border-radius:10px; padding:11px 14px; font-family:'JetBrains Mono',monospace; font-size:12.5px; color:#566e4b;" style-hover="background:rgba(111,132,102,.24);">reconnect</button>
+        <button onClick="{{ bleDisconnect }}" style="cursor:pointer; background:none; border:1px solid rgba(59,55,47,.22); border-radius:10px; padding:11px 14px; font-family:'JetBrains Mono',monospace; font-size:12.5px; color:rgba(46,43,36,.7);" style-hover="border-color:rgba(59,55,47,.4);">disconnect</button>
+      </div>
+      <div style="display:flex; justify-content:space-between; font-family:'JetBrains Mono',monospace; font-size:11.5px; color:rgba(46,43,36,.6); border-top:1px solid rgba(59,55,47,.12); padding-top:12px;">
+        <span>status</span><span style="color:{{ sourceColor }};">{{ bleStateTxt }}</span>
+      </div>
+      <div style="display:flex; justify-content:space-between; font-family:'JetBrains Mono',monospace; font-size:11px; color:rgba(46,43,36,.5); margin-top:6px;">
+        <span>{{ bleKnownTxt }}</span><span>{{ sourceTxt }}</span>
+      </div>
+      <div style="font-family:'JetBrains Mono',monospace; font-size:10.5px; color:#94762f; margin-top:12px; line-height:1.5;">{{ bleSupTxt }}</div>
+      <div style="font-family:'JetBrains Mono',monospace; font-size:10px; color:rgba(46,43,36,.45); margin-top:10px; line-height:1.6;">Pairs directly with the ESP32 over the Nordic UART Service — no Python hub needed. The first connect needs one click to grant the device; after that the app reconnects on its own.</div>
+    </div>
+  </div>
+  </sc-if>
+
+  <!-- LANDING -->
+  <div ref="{{ landingRef }}" onMouseMove="{{ onLandingMove }}" style="position:absolute; inset:0; z-index:40; opacity:{{ landingOpacity }}; pointer-events:{{ landingPE }}; transform:{{ landingTransform }}; transition:opacity .9s ease, transform 1.1s cubic-bezier(.4,0,.2,1); overflow:hidden;">
+    <!-- floating phages — drift in liquid, pushed by the cursor -->
+    <div style="position:absolute; inset:0; z-index:1; pointer-events:none; perspective:1100px;">
+      <sc-for list="{{ landingBodies }}" as="b" hint-placeholder-count="4">
+        <div style="position:absolute; left:0; top:0; transform:{{ b.tf }}; opacity:{{ b.op }}; filter:drop-shadow(0 18px 26px rgba(90,80,110,.22));">
+          <div style="width:0; height:0; transform-style:preserve-3d; transform:rotateX(-18deg); animation:spin3d {{ b.spinS }} linear infinite;">
+            <sc-for list="{{ phageFaces }}" as="fc" hint-placeholder-count="20"><div style="position:absolute; left:0; top:0; width:1px; height:1px; transform-origin:0 0; clip-path:polygon(0 0,100% 0,0 100%); background:{{ fc.bg }}; transform:{{ fc.tf }};"></div></sc-for>
+            <sc-for list="{{ phageLines }}" as="ln" hint-placeholder-count="40"><div style="position:absolute; left:0; top:0; height:{{ ln.wgt }}; transform-origin:0 50%; border-radius:2px; background:linear-gradient(90deg,rgba(176,184,224,.95),rgba(150,138,196,.9)); width:{{ ln.w }}; transform:{{ ln.t }};"></div></sc-for>
+            <sc-for list="{{ phageFibers }}" as="f" hint-placeholder-count="12"><div style="position:absolute; left:0; top:0; height:{{ f.wgt }}; transform-origin:0 50%; border-radius:2px; background:linear-gradient(90deg,rgba(150,165,190,.92),rgba(138,150,188,.78)); width:{{ f.w }}; transform:{{ f.t }};"></div></sc-for>
+            <sc-for list="{{ phageDots }}" as="d" hint-placeholder-count="6"><div style="position:absolute; left:0; top:0; width:{{ d.sz }}; height:{{ d.sz }}; margin:{{ d.mg }}; border-radius:50%; background:{{ d.bg }}; box-shadow:{{ d.glow }}; transform:{{ d.t }};"></div></sc-for>
+            <div style="position:absolute; left:0; top:0; width:{{ bpRingW }}; height:{{ bpRingW }}; border:1.5px solid rgba(132,126,166,.55); border-radius:50%; transform:{{ bpT }};"></div>
+          </div>
+        </div>
+      </sc-for>
+    </div>
+    <header style="position:relative; z-index:3; display:flex; align-items:center; justify-content:space-between; padding:30px 44px;">
+      <div style="font-family:'Instrument Serif',serif; font-style:italic; font-weight:400; font-size:30px; letter-spacing:.01em; background:linear-gradient(100deg,#6f8466,#847ea6 52%,#6f8499); -webkit-background-clip:text; background-clip:text; color:transparent;">Phagentic</div>
+      <div style="font-family:'JetBrains Mono',monospace; font-size:10px; letter-spacing:.16em; color:rgba(46,43,36,.5);">PHAGE&nbsp;FOUNDRY&nbsp;·&nbsp;2026</div>
+    </header>
+    <div style="position:absolute; inset:0; z-index:2; display:grid; grid-template-columns:1.05fr 1fr; align-items:center;">
+      <div style="padding:0 44px 0 64px; max-width:660px;">
+        <div style="font-family:'JetBrains Mono',monospace; font-size:11px; letter-spacing:.2em; color:#6f7a5c;">A&nbsp;WORLD-MODEL&nbsp;CONTROLLER&nbsp;FOR&nbsp;OSCILLATING&nbsp;REACTIONS</div>
+        <h1 style="font-family:'Space Grotesk',sans-serif; font-weight:500; font-size:72px; line-height:1.02; letter-spacing:-.02em; margin:24px 0 0; color:#2e2b24;">
+          Every culture has<br>one <span style="font-family:'Instrument Serif',serif; font-style:italic; font-weight:400; font-size:84px; background:linear-gradient(100deg,#6f8466,#847ea6 52%,#6f8499); -webkit-background-clip:text; background-clip:text; color:transparent;">perfect moment.</span>
+        </h1>
+        <p style="font-size:17px; line-height:1.62; color:rgba(46,43,36,.68); max-width:486px; margin:28px 0 0;">An oscillating reaction lives and dies on timing — blue, then colorless, then blue again. <span style="color:#2e2b24; font-weight:500;">PHAGENTIC</span> watches the live colour, estimates amplitude and period in real time, and drives the stirrer and glucose pump to hold the rhythm. Not a fixed recipe — a closed loop.</p>
+        <div style="display:flex; align-items:center; gap:30px; margin-top:40px;">
+          <button onClick="{{ enter }}" style="cursor:pointer; background:none; border:none; padding:5px 0; font-family:'JetBrains Mono',monospace; font-size:13px; font-weight:600; letter-spacing:.12em; color:#566e4b; border-bottom:2px solid #6f8466;" style-hover="border-bottom-color:#2e2b24;">ENTER THE CONSOLE →</button>
+          <button onClick="{{ enter }}" style="cursor:pointer; background:none; border:none; padding:5px 0; font-family:'JetBrains Mono',monospace; font-size:13px; letter-spacing:.12em; color:rgba(46,43,36,.62); border-bottom:1px solid rgba(59,55,47,.28);" style-hover="color:#2e2b24;">WATCH IT OSCILLATE</button>
+        </div>
+        <div style="display:flex; gap:30px; margin-top:46px; font-family:'JetBrains Mono',monospace;">
+          <div><div style="font-size:24px; font-weight:600; color:#566e4b;">10+</div><div style="font-size:9.5px; color:rgba(46,43,36,.5); letter-spacing:.06em; margin-top:5px;">CYCLES&nbsp;/&nbsp;RUN</div></div>
+          <div style="border-left:1px solid rgba(59,55,47,.18); padding-left:30px;"><div style="font-size:24px; font-weight:600; color:#2e2b24;">20min</div><div style="font-size:9.5px; color:rgba(46,43,36,.5); letter-spacing:.06em; margin-top:5px;">ACTIVE&nbsp;RUN</div></div>
+          <div style="border-left:1px solid rgba(59,55,47,.18); padding-left:30px;"><div style="font-size:24px; font-weight:600; color:#2e2b24;">&lt;1s</div><div style="font-size:9.5px; color:rgba(46,43,36,.5); letter-spacing:.06em; margin-top:5px;">SENSE&nbsp;→&nbsp;ACT</div></div>
+        </div>
+      </div>
+      <div style="position:relative; height:100%; display:flex; align-items:flex-end; justify-content:center; perspective:1100px;">
+        <div style="position:absolute; bottom:11%; font-family:'JetBrains Mono',monospace; font-size:10px; letter-spacing:.16em; color:rgba(46,43,36,.45);">ICOSAHEDRAL&nbsp;CAPSID&nbsp;·&nbsp;CONTRACTILE&nbsp;TAIL</div>
+      </div>
+    </div>
+  </div>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props="{&quot;$preview&quot;:{&quot;width&quot;:1320,&quot;height&quot;:820},&quot;watercolor&quot;:{&quot;editor&quot;:&quot;float&quot;,&quot;default&quot;:0.85,&quot;min&quot;:0,&quot;max&quot;:1,&quot;step&quot;:0.05,&quot;tsType&quot;:&quot;number&quot;},&quot;simSpeed&quot;:{&quot;editor&quot;:&quot;float&quot;,&quot;default&quot;:1,&quot;min&quot;:0.4,&quot;max&quot;:2,&quot;step&quot;:0.1,&quot;tsType&quot;:&quot;number&quot;},&quot;palette&quot;:{&quot;editor&quot;:&quot;enum&quot;,&quot;default&quot;:&quot;Meadow&quot;,&quot;options&quot;:[&quot;Meadow&quot;,&quot;Clay&quot;,&quot;Mist&quot;],&quot;tsType&quot;:&quot;string&quot;}}">
+class Component extends DCLogic {
+  constructor(props){
+    super(props);
+    this._chatLen=0;
+    this.phage=this.buildPhage(92);
+    this.runPalette=['#6f8466','#847ea6','#94762f','#6f8499','#b06a45','#7f9a72'];
+    const calcLayout=[['√','fn'],['x²','fn'],['1/x','fn'],['÷','op'],['7','n'],['8','n'],['9','n'],['×','op'],['4','n'],['5','n'],['6','n'],['−','op'],['1','n'],['2','n'],['3','n'],['+','op'],['0','n'],['.','n'],['±','fn'],['=','eq']];
+    this.calcKeys=calcLayout.map(([l,type])=>{
+      const bg=type==='eq'?'#6f8466':type==='op'?'rgba(148,118,47,.12)':type==='fn'?'rgba(59,55,47,.06)':'rgba(255,255,255,.36)';
+      const c=type==='eq'?'#fbf8f2':type==='op'?'#94762f':type==='fn'?'rgba(46,43,36,.7)':'#2e2b24';
+      return { l, c, bg, h:()=>this.calcInput(l) };
+    });
+    // Named equations for the Blue Bottle reaction. Each opens in a roomy detail
+    // view with labelled, unit-tagged inputs. `temp` is a two-way °C⇄°F converter.
+    this.eqLib=[
+      {id:'amp', name:'Oscillation amplitude', expr:'A = peak − trough', desc:'Peak-to-trough swing of the normalized blue signal — the controller keeps this above ~0.4.', fields:[['Peak','P','B̂ 0–1'],['Trough','T','B̂ 0–1']], fn:v=>v.P-v.T, unit:'B̂', dp:2},
+      {id:'period', name:'Oscillation period', expr:'T = 2 × t½', desc:'Time for one full blue → colorless → blue cycle.', fields:[['Half-period','H','s']], fn:v=>2*v.H, unit:'s', dp:1},
+      {id:'freq', name:'Frequency', expr:'f = 1 ÷ T', desc:'Oscillations per second.', fields:[['Period','P','s']], fn:v=>v.P?1/v.P:0, unit:'Hz', dp:4},
+      {id:'blue', name:'Blue intensity', expr:'B̂ = (b − r) ÷ 255', desc:'Normalized blueness from the TCS34725 colour sensor.', fields:[['Blue channel','b','0–255'],['Red channel','r','0–255']], fn:v=>(v.b-v.r)/255, unit:'B̂', dp:3},
+      {id:'stir', name:'Stirrer → half-period', expr:'t½ = (60 − 44·s) ÷ 2', desc:'Model estimate: more stirring adds O₂ faster and shortens the blue phase. s = PWM ÷ 255.', fields:[['Stirrer','s','PWM 0–255']], fn:v=>{const x=Math.max(0,Math.min(1,v.s/255));return (60-44*x)/2;}, unit:'s', dp:1},
+      {id:'kla', name:'O₂ transfer rate', expr:'OTR = kLa · (C*−C)', desc:'Oxygen mass transfer — drives the oxidized (blue) phase.', fields:[['kLa','k','1/s'],['C*−C','d','mg/L']], fn:v=>v.k*v.d, unit:'mg/L·s', dp:3},
+      {id:'dose', name:'Glucose dose volume', expr:'V = q · t', desc:'Bolus volume delivered by one pump pulse.', fields:[['Flow rate','q','mL/s'],['Pulse time','t','s']], fn:v=>v.q*v.t, unit:'mL', dp:2},
+      {id:'cycles', name:'Cycles per run', expr:'N = (R·60) ÷ T', desc:'How many oscillations fit a run of a given length.', fields:[['Run length','R','min'],['Period','P','s']], fn:v=>v.P?(v.R*60)/v.P:0, unit:'cycles', dp:0},
+      {id:'temp', name:'Temperature  °C ⇄ °F', expr:'°F = °C·9/5 + 32', desc:'Convert between Celsius and Fahrenheit — type in either box.', converter:true},
+    ];
+    this.chips=[
+      {l:'Why did amplitude drop?', h:()=>this.sendChat('Why did amplitude drop?')},
+      {l:'How do I speed it up?', h:()=>this.sendChat('How do I speed it up?')},
+      {l:'Is it about to stall?', h:()=>this.sendChat('Is it about to stall?')},
+    ];
+    this.panelIds=['reactors','swatch','world','narr','manual','calc','ask','runs'];
+    this.labels={reactors:'VESSEL', swatch:'COLOUR LOG', world:'OSCILLATION', narr:'NARRATION', manual:'MANUAL CONSOLE', calc:'CALCULATOR', ask:'ASK PHAGE', runs:'RUNS'};
+    // starting size per panel (px, design space); user-resizable from the corner.
+    this._size={ reactors:[300,360], swatch:[300,400], world:[540,360], narr:[300,360], manual:[470,410], calc:[360,420], ask:[340,360], runs:[300,340] };
+    this.dragH={}; this.closeH={}; this.openH={}; this.resizeH={};
+    this.panelIds.forEach(id=>{ this.dragH[id]=this.startDrag(id); this.closeH[id]=()=>this.closePanel(id); this.openH[id]=()=>this.openPanel(id); this.resizeH[id]=this.startResize(id); });
+    this.knobCool=this.startKnob('stirrer',0,255,0.8); this.knobMoi=this.startKnob('glucoseDoseMs',50,2000,4); this.knobThr=this.startKnob('ampThreshold',5,95,0.3);
+    this._zc=this.panelIds.length;
+    const mk=(open,id)=>({x:20,y:20,w:this._size[id][0],h:this._size[id][1],open, zi:this.panelIds.indexOf(id)+1});
+    this._be=null; this._ble=null; this._bleName='Bioreactor';
+    this._pins={stirrer:23, glucose:19, naoh:18, light:25};
+    // Mirrors hub/config.json — used to configure pins when connecting directly over BLE.
+    this._defaultConfig={ mosfets:[{name:'NaOH Pump',pin:18,mode:'digital'},{name:'Glucose Pump',pin:19,mode:'digital'},{name:'Stirrer',pin:23,mode:'pwm'}], sensor_light:{pin:25} };
+    this.state={
+      onLanding:true, running:true, mode:'auto', bumped:false, uiZoom:1.0, live:false,
+      // setpoints (UI-owned; the in-browser control loop reads these)
+      stirrer:150, glucoseDoseMs:500, ampThreshold:40, targetHalfPeriod:25, solveMode:'period', light:255, calibTxt:'', source:'sim',
+      settingsOpen:false, bleName:'Bioreactor', bleStatus:'', bleKnown:0,
+      // measured / derived (flushed from the ingest loop ~10Hz)
+      t:0, runIndex:1, blue:0.5, rgb:[228,226,214], lux:0,
+      amp:0, period:0, halfPeriod:0, phase:'colorless', cycles:0, stallRisk:0,
+      stirrerOut:150, glucoseActive:false, naohActive:false, glucosePulses:0, lastPulseT:null,
+      hist:[],
+      narr:[{txt:'System online. Awaiting first blue↔colorless swing.', kind:'info'}],
+      panels:{ reactors:mk(true,'reactors'), swatch:mk(true,'swatch'), world:mk(true,'world'), narr:mk(true,'narr'), manual:mk(true,'manual'), calc:mk(true,'calc'), ask:mk(true,'ask'), runs:mk(false,'runs') },
+      drag:null, resize:null, stageW:1304, stageH:740,
+      calc:{display:'0', acc:null, op:null, fresh:true}, calcTab:'keys',
+      eq:{ amp:{}, period:{}, freq:{}, blue:{}, stir:{}, kla:{}, dose:{}, cycles:{}, temp:{} }, eqSel:null,
+      chat:[{role:'sys', text:'Ask me about this run — amplitude, period, stalling, or how to drive the oscillation.'}], chatInput:'',
+      runs:[],
+      captures:[], compareMode:false, compareSel:[], animating:false,
+      landW:1320, landH:760,
+      bodies:[
+        {id:'hero', x:920, y:400, vx:0.45, vy:0.35, scale:0.82, kind:'full', spin:26},
+      ],
+    };
+    this.resetProc(0);
+  }
+  componentDidMount(){ this.resetProc(this.now()); this.sim=setInterval(()=>this.tick(),80); this.flushT=setInterval(()=>this.flush(),100); this.land=setInterval(()=>this.landingTick(),32); this._onResize=()=>{ this.measure(); this.measureLanding(); }; window.addEventListener('resize',this._onResize); requestAnimationFrame(()=>{ this.measure(); this.measureLanding(); }); setTimeout(()=>{ this.measure(); this.measureLanding(); },140); this.connectBackend(); setTimeout(()=>this.bleAutoReconnect(),700); if(/console/.test(location.hash)||new URLSearchParams(location.search).get('view')==='console'){ setTimeout(()=>this.enter(),220); } }
+  componentWillUnmount(){ clearInterval(this.sim); clearInterval(this.flushT); clearInterval(this.land); window.removeEventListener('resize',this._onResize); if(this._be) this._be.close(); if(this._ble&&this._ble.connected) this._ble.disconnect(); }
+  goHome=()=>{ this.setState({ onLanding:true }, ()=>this.measureLanding()); };
+
+  // ---- Python hub bridge -----------------------------------------------------
+  // The hub (hub/dashboard.py) is left untouched: it streams white-balanced RGB
+  // over SSE (/stream) and accepts pin commands (/set). All oscillation analysis
+  // and the auto control loop run here in the browser; we only send actuator
+  // commands. When the hub is unreachable an in-browser simulation drives the UI.
+  now(){ return Date.now()/1000; }
+  connectBackend(){
+    const be=window.PhagenticBackend; if(!be) return; this._be=be;
+    be.onConfig=(cfg)=>this.resolvePins(cfg);
+    be.onStatus=(up)=>{
+      if(this._ble&&this._ble.connected) return;                            // BLE takes precedence
+      this.setState({ live:up, source:up?'hub':'sim' });
+      if(up){ if(this.sim){ clearInterval(this.sim); this.sim=null; } }     // hardware drives the stream
+      else { if(!this.sim){ this.sim=setInterval(()=>this.tick(),80); } }   // fall back to simulation
+    };
+    be.onSensor=(d)=>{ if(this._ble&&this._ble.connected) return; if(d&&typeof d.r==='number') this.ingest(d.r,d.g,d.b,(d.lux!=null?d.lux:(d.c||0)),this.now()); };
+    be.connect();
+  }
+  pinsFromConfig(cfg){
+    const p={stirrer:23, glucose:19, naoh:18, light:25};
+    (cfg.mosfets||[]).forEach(m=>{ const n=(m.name||'').toLowerCase(); if(/stir/.test(n)) p.stirrer=m.pin; else if(/gluc/.test(n)) p.glucose=m.pin; else if(/na.?oh|chlor/.test(n)) p.naoh=m.pin; });
+    if(cfg.sensor_light&&cfg.sensor_light.pin!=null) p.light=cfg.sensor_light.pin;
+    return p;
+  }
+  resolvePins(cfg){ this._pins=this.pinsFromConfig(cfg); }
+  pinMap(cfg){ const pins=(cfg.mosfets||[]).map(m=>({pin:m.pin, mode:m.mode})); if(cfg.sensor_light&&cfg.sensor_light.pin!=null) pins.push({pin:cfg.sensor_light.pin, mode:'pwm'}); return pins; }
+  cmdSet(cmd,pinKey,value){ const pin=this._pins?this._pins[pinKey]:null; if(pin==null) return; if(this._ble&&this._ble.connected){ if(cmd==='set_pwm') this._ble.setPwm(pin,value); else this._ble.setDigital(pin,value); } else if(this._be&&this._be.connected){ this._be.set(cmd,pin,value); } }
+
+  // ---- direct Web Bluetooth link (no hub needed) ----------------------------
+  bleInit(){
+    const ble=window.PhagenticBLE; if(!ble) return null; if(this._bleInited) return ble;
+    this._bleInited=true; this._ble=ble;
+    ble.onLog=(m)=>this.setState({bleStatus:m});
+    ble.onSample=(d)=>{ if(d&&typeof d.r==='number') this.ingest(d.r,d.g,d.b,(d.lux!=null?d.lux:0),this.now()); };
+    ble.onStatus=(up)=>{
+      this.setState({ live:up, source:up?'ble':'sim', bleStatus:up?'connected':'disconnected' });
+      if(up){ if(this.sim){ clearInterval(this.sim); this.sim=null; } if(this._be) this._be.close(); }
+      else { ble.stopStream(); if(!this.sim){ this.sim=setInterval(()=>this.tick(),80); } }
+    };
+    return ble;
+  }
+  afterBleConnect=async()=>{
+    const ble=this._ble; if(!ble) return;
+    const ok=await ble.ping(); if(!ok){ this.pushNarr('Connected, but no reply to ping — is the firmware flashed?','warn'); return; }
+    this._pins=this.pinsFromConfig(this._defaultConfig);
+    await ble.configure(this.pinMap(this._defaultConfig));
+    await ble.setPwm(this._pins.light, this.state.light);     // light on for the sensor
+    ble.startStream(20);
+    this.pushNarr('Bluetooth live — streaming colour at 20 Hz. Recalibrate against white for true colour.','win');
+  };
+  bleConnect=()=>{
+    const ble=this.bleInit(); if(!ble) return;
+    if(ble.connected){ ble.disconnect(); return; }
+    if(!ble.supported()){ this.pushNarr('Web Bluetooth unavailable — use Chrome/Edge over https or localhost.','warn'); this.setState({bleStatus:'unsupported'}); return; }
+    this.pushNarr('Connecting over Bluetooth…','info'); this.setState({bleStatus:'requesting…'});
+    ble.connect(this.state.bleName).then(this.afterBleConnect).catch(e=>{ const msg=(e&&e.message)||String(e); if(!/cancel/i.test(msg)) this.pushNarr('Bluetooth: '+msg,'warn'); this.setState({bleStatus:msg}); });
+  };
+  bleReconnect=()=>{
+    const ble=this.bleInit(); if(!ble||!ble.supported()) return;
+    this.setState({bleStatus:'searching known…'});
+    ble.reconnect(this.state.bleName).then(ok=>{ if(ok) this.afterBleConnect(); else { this.pushNarr('No previously-granted device — use Connect once to grant access.','dim'); this.setState({bleStatus:'no known device'}); } }).catch(e=>this.setState({bleStatus:(e&&e.message)||'failed'}));
+  };
+  bleDisconnect=()=>{ if(this._ble) this._ble.disconnect(); };
+  bleAutoReconnect(){
+    const ble=this.bleInit(); if(!ble||!ble.supported()) return;
+    ble.listKnown().then(list=>{ this.setState({bleKnown:list.length}); if(list.length){ this.pushNarr('Found a known device — reconnecting…','dim'); ble.reconnect(this.state.bleName).then(ok=>{ if(ok) this.afterBleConnect(); }).catch(()=>{}); } });
+  }
+  openSettings=()=>this.setState({settingsOpen:true});
+  closeSettings=()=>this.setState({settingsOpen:false});
+  setBleName=(e)=>this.setState({bleName:e.target.value});
+
+  // ---- signal helpers --------------------------------------------------------
+  blueFromRgb(r,g,b,c){ return Math.max(0,Math.min(1,(b-r)/200)); }   // (b−r): ~0 colorless, large when blue
+  rgbForBlue(blue){ const pale=[228,226,214], deep=[38,92,200], tt=Math.max(0,Math.min(1,blue)); return [Math.round(pale[0]+(deep[0]-pale[0])*tt),Math.round(pale[1]+(deep[1]-pale[1])*tt),Math.round(pale[2]+(deep[2]-pale[2])*tt)]; }
+  pushNarr(txt,kind){ this._narr.push({txt,kind}); if(this._narr.length>60) this._narr=this._narr.slice(-60); }
+  sayOnce(k,txt,kind){ if(!this._said.has(k)){ this._said.add(k); this.pushNarr(txt,kind); } }
+
+  // ---- process state ---------------------------------------------------------
+  resetProc(now){
+    this._t0=now; this._said=new Set();
+    this._blue=0.5; this._rgb=[228,226,214]; this._lux=0;
+    this._prevBlue=0.5; this._dir=0; this._lastMax=0.5; this._lastMin=0.5; this._extT=[];
+    this._amp=0; this._period=0; this._halfP=0; this._cycles=0; this._phase='colorless'; this._lastExtremeT=0;
+    this._piI=0; this._lowAmp=0; this._lastCycleSeen=0; this._sendAcc=0;
+    this._stirrerOut=(this.state&&this.state.stirrer)||150; this._glucoseActive=false; this._naohActive=false; this._glucosePulses=0; this._lastPulseT=null; this._pulseUntil=0; this._naohUntil=0;
+    this._hist=[]; this._narr=[{txt:'System online. Awaiting first blue↔colorless swing.', kind:'info'}];
+    this._runs=this._runs||[]; this._sim={phase:0, glucose:1, alk:1, last:null}; this._bump=false;
+  }
+
+  // Feed one sensor sample (from hardware SSE or the simulator). Drives analysis + control.
+  ingest(r,g,b,c,now){
+    this._rgb=[Math.round(r),Math.round(g),Math.round(b)]; this._lux=Math.round(c);
+    const blue=this.blueFromRgb(r,g,b,c); this._blue=blue;
+    if(!this.state.running) return;
+    const t=Math.max(0,now-this._t0);
+    this.detect(t,blue);
+    this._hist.push({t:+t.toFixed(2), blue:+blue.toFixed(4), mid:0.5}); if(this._hist.length>600) this._hist.shift();
+    if(this._cycles>=1) this.sayOnce('first','First full cycle complete — oscillation established.','win');
+    if(this._amp>=0.6) this.sayOnce('strong','Strong swing — amplitude '+this._amp.toFixed(2)+'.','info');
+    if(this._glucoseActive&&now>=this._pulseUntil){ this._glucoseActive=false; if(this.state.live) this.cmdSet('set_digital','glucose',0); }
+    if(this._naohActive&&now>=this._naohUntil){ this._naohActive=false; if(this.state.live) this.cmdSet('set_digital','naoh',0); }
+    if(this.state.mode==='manual') this._stirrerOut=Math.round(this.state.stirrer);
+    else this.control(now,t);
+    if(this.state.live){ this._sendAcc++; if(this._sendAcc>=4){ this._sendAcc=0; this.cmdSet('set_pwm','stirrer',this._stirrerOut); } }
+  }
+  // Extrema detection on the blue stream → amplitude, half-period, period, cycle count.
+  detect(t,blue){
+    this._phase=blue>=0.5?'blue':'colorless';
+    const d=blue-this._prevBlue, nd=d>1e-3?1:d<-1e-3?-1:this._dir;
+    if(this._dir===0){ this._dir=nd; }
+    else if(nd!==0&&nd!==this._dir){
+      const kind=this._dir>0?'max':'min';
+      if(kind==='max') this._lastMax=this._prevBlue; else this._lastMin=this._prevBlue;
+      this._amp=Math.max(0,Math.min(1,this._lastMax-this._lastMin));
+      if(this._extT.length){ this._halfP=t-this._extT[this._extT.length-1]; if(this._extT.length>=2) this._period=t-this._extT[this._extT.length-2]; if(kind==='min') this._cycles++; }
+      this._extT.push(t); if(this._extT.length>6) this._extT.shift();
+      this._lastExtremeT=t; this._dir=nd;
+    }
+    this._prevBlue=blue;
+  }
+  // AUTO controller: PI on stirrer to hold the target half-period + glucose pulse on decay.
+  control(now,t){
+    const hp=this._halfP;
+    if(hp>0){ const err=this.state.targetHalfPeriod-hp; this._piI=Math.max(-80,Math.min(80,this._piI+err*0.02)); this._stirrerOut=Math.round(Math.max(40,Math.min(255,150-err*4-this._piI))); }
+    if(this._cycles!==this._lastCycleSeen){ this._lastCycleSeen=this._cycles; if(this._amp<this.state.ampThreshold/100) this._lowAmp++; else this._lowAmp=0; if(this._lowAmp>=2){ this.fireGlucose(now,t,true); this._lowAmp=0; } }
+  }
+  fireGlucose(now,t,auto){
+    this._glucoseActive=true; this._pulseUntil=now+this.state.glucoseDoseMs/1000; this._glucosePulses++; this._lastPulseT=+t.toFixed(1);
+    if(this.state.live) this.cmdSet('set_digital','glucose',1);
+    this.pushNarr((auto?'Amplitude decayed — auto glucose pulse.':'Manual glucose pulse.')+' Pulse #'+this._glucosePulses+', '+this.state.glucoseDoseMs+' ms.','warn');
+  }
+  // Offline simulator: a Blue Bottle limit-cycle reacting to the actuator outputs.
+  tick(){
+    if(!this.state.running) return;
+    const now=this.now(), sp=this._sim, dt=sp.last==null?0.06:Math.max(0,Math.min(0.4,now-sp.last)); sp.last=now;
+    const s=this._stirrerOut/255;
+    if(this._glucoseActive) sp.glucose=Math.min(1,sp.glucose+1.2*dt);
+    sp.glucose=Math.max(0,sp.glucose-(0.004+0.012*s)*dt);
+    if(this._naohActive) sp.alk=Math.min(1,sp.alk+0.5*dt);
+    sp.alk=Math.max(0.3,sp.alk-0.002*dt);
+    if(this._bump){ sp.glucose=Math.max(0,sp.glucose-0.25); this._bump=false; }
+    const omega=2*Math.PI/Math.max(6,60-44*s);
+    sp.phase=(sp.phase+omega*dt*(this.props.simSpeed??1))%(2*Math.PI);
+    const amp=Math.max(0,Math.min(1,sp.glucose*sp.alk*(0.35+0.65*s)));
+    const blue=Math.max(0,Math.min(1,0.5+(amp/2)*Math.sin(sp.phase)));
+    const [r,g,b]=this.rgbForBlue(blue), c=Math.round(700*(1-0.55*blue));
+    this.ingest(r,g,b,c,now);
+  }
+  runColor(n){ return this.runPalette[(n-1)%this.runPalette.length]; }
+  resetRun(now,log,note){
+    if(log){ this._runs.push({n:this.state.runIndex, cycles:this._cycles, color:this.runColor(this.state.runIndex)}); this._runs=this._runs.slice(-14); }
+    this.resetProc(now);
+    this.setState(s=>({ runIndex:log?s.runIndex+1:s.runIndex }));
+    if(note) this.pushNarr(note,'info');
+  }
+  // Copy fast-changing instance fields into React state (~10Hz) so the sensor rate
+  // is decoupled from render cost.
+  flush(){
+    const t=Math.max(0,this.now()-this._t0);
+    this.setState({ t, blue:this._blue, rgb:this._rgb.slice(), lux:this._lux, amp:this._amp, period:this._period, halfPeriod:this._halfP, phase:this._phase, cycles:this._cycles, stallRisk:Math.max(0,Math.min(1,(t-this._lastExtremeT)/90)), stirrerOut:this._stirrerOut, glucoseActive:this._glucoseActive, naohActive:this._naohActive, glucosePulses:this._glucosePulses, lastPulseT:this._lastPulseT, hist:this._hist.slice(), narr:this._narr.slice(), runs:this._runs.slice() });
+  }
+  componentDidUpdate(){ if(this._chatEl && this.state.chat.length!==this._chatLen){ this._chatLen=this.state.chat.length; this._chatEl.scrollTop=this._chatEl.scrollHeight; } }
+
+  // Shelf / best-fit packing: lay open panels left→right in panelIds order,
+  // wrapping to a new row when the next would overflow the desk width. This is
+  // the "puzzle" tidy — it adapts to each panel's current size.
+  // ---- 3D phage model (home-screen floaters) --------------------------------
+  seg(A,B){
+    const dx=B[0]-A[0], dy=B[1]-A[1], dz=B[2]-A[2], len=Math.hypot(dx,dy,dz);
+    const yaw=Math.atan2(dy,dx)*180/Math.PI, pit=Math.atan2(dz,Math.hypot(dx,dy))*180/Math.PI;
+    return { w:len.toFixed(1)+'px', sw:len.toFixed(1)+'px', t:`translate3d(${A[0].toFixed(1)}px,${A[1].toFixed(1)}px,${A[2].toFixed(1)}px) rotateZ(${yaw.toFixed(2)}deg) rotateY(${(-pit).toFixed(2)}deg)` };
+  }
+  buildPhage(S){
+    const TAU=Math.PI/3;
+    const hexRing=(y,r,phase)=>{ const a=[]; for(let i=0;i<6;i++){ const ang=i*TAU+(phase||0); a.push([Math.cos(ang)*r, y, Math.sin(ang)*r]); } return a; };
+    const Req=S*0.92, Rbelt=S*0.80, cap=S*0.74, midH=S*1.18;
+    const yA=-(midH/2+cap), yT=-midH/2, yEq=0, yB=midH/2, yN=midH/2+cap;
+    const ringT=hexRing(yT,Rbelt), ringEq=hexRing(yEq,Req,TAU/2), ringB=hexRing(yB,Rbelt);
+    const Apex=[0,yA,0], Neck=[0,yN,0];
+    const rTail=S*0.26, tailLen=S*1.9, bpY=yN+tailLen, rBp=S*0.42;
+    const ringN=hexRing(yN,rTail,TAU/2), ringP=hexRing(bpY,rTail,TAU/2), bpRing=hexRing(bpY,rBp);
+    const ld=[0.42,-0.5,0.76], ll=Math.hypot(ld[0],ld[1],ld[2]), L=[ld[0]/ll,ld[1]/ll,ld[2]/ll];
+    const faces=[]; const shadeAt=(nn)=>Math.max(0,Math.min(1,(nn[0]*L[0]+nn[1]*L[1]+nn[2]*L[2]+1)/2));
+    const tri=(A,B,C,base,aLo,aHi)=>{
+      const u=[B[0]-A[0],B[1]-A[1],B[2]-A[2]], v=[C[0]-A[0],C[1]-A[1],C[2]-A[2]];
+      let n=[u[1]*v[2]-u[2]*v[1],u[2]*v[0]-u[0]*v[2],u[0]*v[1]-u[1]*v[0]];
+      const cen=[(A[0]+B[0]+C[0])/3,(A[1]+B[1]+C[1])/3,(A[2]+B[2]+C[2])/3];
+      if(n[0]*cen[0]+n[1]*cen[1]+n[2]*cen[2]<0) n=[-n[0],-n[1],-n[2]];
+      const nl=Math.hypot(n[0],n[1],n[2])||1, nn=[n[0]/nl,n[1]/nl,n[2]/nl];
+      const sh=shadeAt(nn), g=Math.pow(sh,0.8);
+      const r=Math.round(base[0]+g*base[3]), gg=Math.round(base[1]+g*base[4]), b=Math.round(base[2]+g*base[5]), a=(aLo+g*(aHi-aLo)).toFixed(2);
+      const tf=`matrix3d(${u[0].toFixed(2)},${u[1].toFixed(2)},${u[2].toFixed(2)},0,${v[0].toFixed(2)},${v[1].toFixed(2)},${v[2].toFixed(2)},0,${nn[0].toFixed(3)},${nn[1].toFixed(3)},${nn[2].toFixed(3)},0,${A[0].toFixed(2)},${A[1].toFixed(2)},${A[2].toFixed(2)},1)`;
+      faces.push({ tf, bg:`rgba(${r},${gg},${b},${a})`, sh, cen });
+    };
+    const quad=(A,B,C,D,base,lo,hi)=>{ tri(A,B,C,base,lo,hi); tri(A,C,D,base,lo,hi); };
+    const headCol=[96,108,150,140,128,104], tailCol=[110,124,158,118,110,92];
+    for(let i=0;i<6;i++){ const j=(i+1)%6;
+      tri(Apex,ringT[i],ringT[j],headCol,0.16,0.62);
+      quad(ringT[i],ringT[j],ringEq[j],ringEq[i],headCol,0.14,0.58);
+      quad(ringEq[i],ringEq[j],ringB[j],ringB[i],headCol,0.14,0.58);
+      tri(Neck,ringB[j],ringB[i],headCol,0.16,0.62);
+    }
+    for(let i=0;i<6;i++){ const j=(i+1)%6;
+      quad(ringN[i],ringN[j],ringP[j],ringP[i],tailCol,0.16,0.42);
+      tri(ringP[i],ringP[j],bpRing[i],tailCol,0.18,0.46); tri(ringP[j],bpRing[j],bpRing[i],tailCol,0.18,0.46);
+    }
+    const lines=[]; const edge=(A,B,w,br)=>lines.push({...this.seg(A,B), wgt:(w||1).toFixed(1)+'px', bright:br?1:0});
+    for(let i=0;i<6;i++){ const j=(i+1)%6;
+      edge(Apex,ringT[i],1.4,1); edge(ringT[i],ringT[j],1.2,1); edge(ringEq[i],ringEq[j],1.5,1);
+      edge(ringB[i],ringB[j],1.2,1); edge(Neck,ringB[i],1.4,1);
+      edge(ringT[i],ringEq[i],1.1,0); edge(ringEq[i],ringB[i],1.1,0);
+    }
+    for(let k=0;k<=4;k++){ const rr=hexRing(yN+tailLen*(k/4), rTail, TAU/2); for(let i=0;i<6;i++) edge(rr[i],rr[(i+1)%6],0.9,0); }
+    for(let i=0;i<6;i++){ edge(ringN[i],ringP[i],1.0,0); edge(bpRing[i],bpRing[(i+1)%6],1.4,1); }
+    const fibers=[]; const feet=[];
+    for(let i=0;i<6;i++){ const ang=i*TAU, bx=Math.cos(ang), bz=Math.sin(ang), base=bpRing[i];
+      const knee=[base[0]+bx*S*0.86, bpY+S*0.50, base[2]+bz*S*0.86];
+      const foot=[knee[0]+bx*S*0.30, knee[1]+S*1.02, knee[2]+bz*S*0.30];
+      fibers.push({...this.seg(base,knee), wgt:'2.2px'}); fibers.push({...this.seg(knee,foot), wgt:'1.8px'});
+      feet.push({ t:`translate3d(${foot[0].toFixed(1)}px,${foot[1].toFixed(1)}px,${foot[2].toFixed(1)}px)` });
+    }
+    const lit=faces.filter(f=>f.cen[1]<yEq).slice().sort((a,b)=>b.sh-a.sh).slice(0,3);
+    const dots=lit.map(f=>({ t:`translate3d(${f.cen[0].toFixed(1)}px,${f.cen[1].toFixed(1)}px,${f.cen[2].toFixed(1)}px)`, sz:'6px', mg:'-3px', bg:'rgba(255,255,255,.98)', glow:'0 0 10px rgba(255,255,255,.95)' }))
+      .concat(feet.map(f=>({ t:f.t, sz:'5px', mg:'-2.5px', bg:'#eef0fb', glow:'0 1px 5px rgba(90,80,120,.4)' })));
+    const rS=rBp*2, bpT=`translate3d(${(-rS/2).toFixed(1)}px,${(bpY-rS/2).toFixed(1)}px,${(-rS/2).toFixed(1)}px) rotateX(90deg)`;
+    return { lines, faces, fibers, dots, bpT, rS };
+  }
+  measureLanding(){ if(!this._land) return; const r=this._land.getBoundingClientRect(); if(r.width<60) return; this.setState(s=>{ const W=r.width,H=r.height; const b=s.bodies.map(o=>({...o, x:Math.max(60,Math.min(W-60,o.x)), y:Math.max(60,Math.min(H-60,o.y))})); return { landW:W, landH:H, bodies:b }; }); }
+  landingRef=(el)=>{ this._land=el; };
+  onLandingMove=(e)=>{ if(!this._land) return; const r=this._land.getBoundingClientRect(); this._lm={x:e.clientX-r.left, y:e.clientY-r.top, t:Date.now()}; };
+  // Floating physics: gentle drift, speed clamps, wall bounce, and mouse repulsion
+  // (cursor pushes nearby phages away — like nudging something in liquid).
+  landingTick(){
+    if(!this.state.onLanding) return;
+    this.setState(s=>{
+      const W=s.landW,H=s.landH,m=this._lm&&(Date.now()-this._lm.t<260)?this._lm:null;
+      const bodies=s.bodies.map(o=>{
+        let {x,y,vx,vy}=o; const mar=o.scale*120+40;
+        if(m){ const dx=x-m.x, dy=y-m.y, d=Math.hypot(dx,dy), R=200; if(d<R&&d>0.1){ const f=(R-d)/R*1.1; vx+=dx/d*f; vy+=dy/d*f; } }
+        vx+=Math.sin((Date.now()/1700)+x*0.01)*0.012; vy+=Math.cos((Date.now()/1900)+y*0.01)*0.012;
+        const sp=Math.hypot(vx,vy), cap=2.0; if(sp>cap){ vx=vx/sp*cap; vy=vy/sp*cap; }
+        if(sp<0.32){ const k=0.32/(sp||1); vx*=k; vy*=k; }
+        x+=vx; y+=vy;
+        const loX=o.id==='hero'?Math.max(mar,W*0.46):mar, hiX=W-mar;
+        if(x<loX){ x=loX; vx=Math.abs(vx); } if(x>hiX){ x=hiX; vx=-Math.abs(vx); }
+        if(y<mar){ y=mar; vy=Math.abs(vy); } if(y>H-mar){ y=H-mar; vy=-Math.abs(vy); }
+        vx*=0.995; vy*=0.995;
+        return {...o, x,y,vx,vy};
+      });
+      return { bodies };
+    });
+  }
+  // Greedy skyline packing: place each panel at the highest (smallest-y), then
+  // leftmost, gap-respecting slot that fits the desk width — tallest first so
+  // shorter panels fill the gaps. Minimizes total vertical space, no overlap.
+  packLayout(panels, contentW){
+    const g=14, m=14, right=contentW-m, P={...panels};
+    const open=this.panelIds.filter(id=>P[id]&&P[id].open);
+    const order=open.slice().sort((a,b)=>(P[b].h-P[a].h)||(P[b].w-P[a].w)||(this.panelIds.indexOf(a)-this.panelIds.indexOf(b)));
+    const placed=[];
+    const yAt=(x,w)=>{ let y=m; placed.forEach(r=>{ if(x < r.x+r.w+g-0.01 && x+w > r.x-g+0.01) y=Math.max(y, r.y+r.h+g); }); return y; };
+    order.forEach(id=>{ const w=P[id].w, h=P[id].h;
+      let xs=[m]; placed.forEach(r=>{ xs.push(r.x); xs.push(r.x+r.w+g); });
+      xs=Array.from(new Set(xs)).filter(x=>x>=m && x+w<=right+0.5).sort((a,b)=>a-b);
+      if(!xs.length) xs=[m];
+      let best=null;
+      xs.forEach(x=>{ const y=yAt(x,w); if(!best || y<best.y-0.5 || (Math.abs(y-best.y)<0.5 && x<best.x)) best={x,y}; });
+      P[id]={...P[id], x:best.x, y:best.y}; placed.push({x:best.x, y:best.y, w, h});
+    });
+    return P;
+  }
+  deskW(){ if(!this._scroll) return this.state.stageW; const r=this._scroll.getBoundingClientRect(); return r.width/(this.state.uiZoom||1); }
+  deskContentH(panels){ let mb=this.state.stageH; for(const id in panels){ const p=panels[id]; if(p.open) mb=Math.max(mb, p.y+p.h); } return mb+14; }
+  scheduleAnimEnd(){ clearTimeout(this._animT); this._animT=setTimeout(()=>this.setState({animating:false}),560); }
+  measure(){ if(!this._scroll) return; const r=this._scroll.getBoundingClientRect(), z=this.state.uiZoom||1, W=r.width/z, H=r.height/z; if(W<60) return; this.setState({ stageW:W, stageH:H }); }
+
+  // Forward model used for the "predicted outcome" + solver readouts (matches the sim).
+  predict(stirrer){ const s=Math.max(0,Math.min(1,stirrer/255)), period=Math.max(6,60-44*s); return { halfP:period/2, period, amp:Math.max(0,Math.min(1,0.35+0.65*s)) }; }
+  solve(target,mode){ const period=2*target; let s=Math.max(0,Math.min(1,(60-period)/44)); let stir=Math.round(s*255); if(mode==='stir') stir=Math.max(40,stir-30); const p=this.predict(stir); return { stir, halfP:p.halfP, amp:p.amp }; }
+
+  // Drag a panel by its title bar — window listeners + scroll-aware coords so it
+  // keeps tracking even while the desk is scrolled or the cursor leaves the panel.
+  // Bring a panel to the top of the stack (and optionally set drag/resize state).
+  bringToFront(id, extra){ this.setState(s=>{ const P={...s.panels}; P[id]={...P[id], zi:++this._zc}; return Object.assign({ panels:P }, extra||{}); }); }
+  startDrag(id){ return (e)=>{
+    e.preventDefault(); const sc=this._scroll.getBoundingClientRect(), z=this.state.uiZoom||1, p=this.state.panels[id];
+    const ox=(e.clientX-sc.left+this._scroll.scrollLeft)/z - p.x, oy=(e.clientY-sc.top+this._scroll.scrollTop)/z - p.y;
+    this.bringToFront(id, { drag:{id} });
+    const move=(ev)=>{ const cw=this.state.stageW, x=(ev.clientX-sc.left+this._scroll.scrollLeft)/z - ox, y=(ev.clientY-sc.top+this._scroll.scrollTop)/z - oy; this.setState(s=>{ const P={...s.panels}, pp={...P[id]}; pp.x=Math.max(6,Math.min(Math.max(6,cw-pp.w-6),x)); pp.y=Math.max(6,y); P[id]=pp; return { panels:P }; }); };
+    const up=()=>{ window.removeEventListener('mousemove',move); window.removeEventListener('mouseup',up); document.body.style.userSelect=''; this.setState({ drag:null }); };
+    document.body.style.userSelect='none'; window.addEventListener('mousemove',move); window.addEventListener('mouseup',up);
+  }; }
+  // Resize a panel from its bottom-right corner.
+  startResize(id){ return (e)=>{
+    e.preventDefault(); e.stopPropagation(); const z=this.state.uiZoom||1, p=this.state.panels[id], sx=e.clientX, sy=e.clientY, sw=p.w, sh=p.h;
+    this.bringToFront(id, { resize:{id} });
+    const move=(ev)=>{ const w=Math.max(240,sw+(ev.clientX-sx)/z), h=Math.max(170,sh+(ev.clientY-sy)/z); this.setState(s=>{ const P={...s.panels}; P[id]={...P[id], w, h}; return { panels:P }; }); };
+    const up=()=>{ window.removeEventListener('mousemove',move); window.removeEventListener('mouseup',up); document.body.style.userSelect=''; this.setState({ resize:null }); };
+    document.body.style.userSelect='none'; window.addEventListener('mousemove',move); window.addEventListener('mouseup',up);
+  }; }
+  // Vertical-drag knob. Uses window listeners so the drag keeps tracking even when
+  // the cursor leaves the knob/stage (the old stage-only tracking felt jumpy).
+  startKnob(param,min,max,scale){ return (e)=>{
+    e.preventDefault(); e.stopPropagation();
+    const startY=e.clientY, startVal=this.state[param], round=(param!=='ampThreshold');
+    this.setState({ mode:'manual' });
+    const move=(ev)=>{ let v=startVal+(startY-ev.clientY)*scale; v=Math.max(min,Math.min(max,v)); if(round) v=Math.round(v); this.setState({ [param]:v }); if(param==='stirrer'){ this._stirrerOut=Math.round(v); if(this.state.live) this.cmdSet('set_pwm','stirrer',this._stirrerOut); } };
+    const up=()=>{ window.removeEventListener('mousemove',move); window.removeEventListener('mouseup',up); document.body.style.userSelect=''; if(param==='stirrer'&&this.state.live) this.cmdSet('set_pwm','stirrer',Math.round(this.state[param])); };
+    document.body.style.userSelect='none';
+    window.addEventListener('mousemove',move); window.addEventListener('mouseup',up);
+  }; }
+  scrollRef=(el)=>{ this._scroll=el; };
+  chatRef=(el)=>{ this._chatEl=el; };
+
+  closePanel(id){ this.setState(s=>{ const P={...s.panels}; P[id]={...P[id], open:false}; return { panels:P }; }); }
+  openPanel(id){ const w=this.deskW(); this.setState(s=>{ const P={...s.panels}; P[id]={...P[id], open:true}; return { panels:this.packLayout(P, w), animating:true }; }); this.scheduleAnimEnd(); }
+
+  enter=()=>{ const w=this.deskW(); this.setState(s=>{ const P={...s.panels}; this.panelIds.forEach(id=>{ if(id!=='runs') P[id]={...P[id], open:true}; }); return { onLanding:false, panels:this.packLayout(P, w), animating:true }; }, ()=>this.measure()); this.scheduleAnimEnd(); };
+  watchRace=()=>{ const w=this.deskW(); this.setState(s=>{ const keep=new Set(['reactors','swatch','world','narr']); const P={...s.panels}; this.panelIds.forEach(id=>{ P[id]={...P[id], open:keep.has(id)}; }); return { onLanding:false, running:true, mode:'auto', panels:this.packLayout(P, w), animating:true }; }, ()=>this.measure()); this.scheduleAnimEnd(); };
+  toggleRun=()=>this.setState(s=>({ running:!s.running }));
+  setAuto=()=>this.setState({ mode:'auto' });
+  setManual=()=>this.setState({ mode:'manual' });
+  zoomIn=()=>this.setState(s=>({ uiZoom:Math.min(1.4,+(s.uiZoom+0.08).toFixed(2)) }), ()=>this.measure());
+  zoomOut=()=>this.setState(s=>({ uiZoom:Math.max(0.8,+(s.uiZoom-0.08).toFixed(2)) }), ()=>this.measure());
+  zoomReset=()=>this.setState({ uiZoom:1.0 }, ()=>this.measure());
+  tidyDesk=()=>{ const w=this.deskW(); this.setState(s=>{ const P={...s.panels}; this.panelIds.forEach(id=>{ if(id!=='runs') P[id]={...P[id], open:true}; }); return { panels:this.packLayout(P, w), animating:true }; }); this.scheduleAnimEnd(); };
+  bump=()=>{ this._bump=true; this.pushNarr('Disturbance injected — controller re-estimating.','warn'); this.setState({ bumped:true }); };
+  remelt=()=>this.resetRun(this.now(),true,'Manual restart — new run logged.');
+  addRun=()=>{ this.resetRun(this.now(),true,'New run started — previous batch logged.'); const w=this.deskW(); this.setState(s=>{ const P={...s.panels}; P.runs={...P.runs, open:true}; return { panels:this.packLayout(P, w), animating:true }; }); this.scheduleAnimEnd(); };
+  // ---- colour capture log ----------------------------------------------------
+  captureColor=()=>{ const s=this.state; const snap={ rgb:s.rgb.slice(), color:'rgb('+s.rgb.join(',')+')', blue:Math.round(s.blue*100), amp:Math.round(s.amp*100), period:s.period.toFixed(1), phase:s.phase, cycles:s.cycles, stirrer:Math.round(s.stirrerOut/255*100), t:s.t.toFixed(1), run:s.runIndex }; this.setState(st=>({ captures:[snap, ...st.captures].slice(0,60) })); };
+  clearCaptures=()=>this.setState({ captures:[], compareSel:[], compareMode:false });
+  toggleCompare=()=>this.setState(s=>({ compareMode:!s.compareMode, compareSel:[] }));
+  toggleCompareSel=(i)=>this.setState(s=>{ const has=s.compareSel.indexOf(i); let sel; if(has>=0) sel=s.compareSel.filter(x=>x!==i); else sel=s.compareSel.concat([i]).slice(-3); return { compareSel:sel }; });
+  // ---- equation library ------------------------------------------------------
+  selectEq=(id)=>this.setState({ eqSel:id });
+  eqBack=()=>this.setState({ eqSel:null });
+  clearEq=(id)=>this.setState(s=>({ eq:{...s.eq, [id]:{}} }));
+  setTempC=(e)=>{ const c=e.target.value, n=parseFloat(c); this.setState(s=>({ eq:{...s.eq, temp:{ c, f:(c===''||isNaN(n))?'':String(Math.round((n*9/5+32)*100)/100)} } })); };
+  setTempF=(e)=>{ const f=e.target.value, n=parseFloat(f); this.setState(s=>({ eq:{...s.eq, temp:{ f, c:(f===''||isNaN(n))?'':String(Math.round(((n-32)*5/9)*100)/100)} } })); };
+  manualFire=()=>{ const now=this.now(); this.fireGlucose(now, Math.max(0,now-this._t0), false); };
+  recolorRun(i){ if(i>=0&&i<this._runs.length){ const idx=this.runPalette.indexOf(this._runs[i].color); this._runs[i]={...this._runs[i], color:this.runPalette[(idx+1)%this.runPalette.length]}; this.flush(); } }
+
+  setCool=(e)=>{ const v=parseFloat(e.target.value); if(!isNaN(v)){ const cv=Math.max(0,Math.min(255,Math.round(v))); this._stirrerOut=cv; if(this.state.live) this.cmdSet('set_pwm','stirrer',cv); this.setState({ mode:'manual', stirrer:cv }); } };
+  setMoi=(e)=>{ const v=parseFloat(e.target.value); if(!isNaN(v)) this.setState({ glucoseDoseMs:Math.max(50,Math.min(2000,Math.round(v))) }); };
+  setThr=(e)=>{ const v=parseFloat(e.target.value); if(!isNaN(v)) this.setState({ ampThreshold:Math.max(5,Math.min(95,Math.round(v))) }); };
+  setTarget=(e)=>{ const v=parseFloat(e.target.value); if(!isNaN(v)) this.setState({ targetHalfPeriod:Math.max(5,Math.min(90,v)) }); };
+  setSolveEq=()=>this.setState({ solveMode:'period' });
+  setSolveEnergy=()=>this.setState({ solveMode:'stir' });
+  applySolve=()=>{ const b=this.solve(this.state.targetHalfPeriod, this.state.solveMode); this._stirrerOut=b.stir; if(this.state.live) this.cmdSet('set_pwm','stirrer',b.stir); this.setState({ mode:'manual', stirrer:b.stir }); };
+  // NaOH / Chloride pump — manual alkalinity top-up (digital pulse, ~1s).
+  pulseNaoh=()=>{ const now=this.now(); this._naohActive=true; this._naohUntil=now+1.0; if(this.state.live) this.cmdSet('set_digital','naoh',1); this.pushNarr('NaOH top-up pulse — restoring alkalinity.','warn'); };
+  // Sensor light brightness (PWM) — illuminates the vessel for the TCS34725.
+  setLight=(e)=>{ const v=parseFloat(e.target.value); if(!isNaN(v)){ const lv=Math.max(0,Math.min(255,Math.round(v))); if(this.state.live) this.cmdSet('set_pwm','light',lv); this.setState({ light:lv }); } };
+  // White-balance recalibration on the hub (aim sensor at white first).
+  recalibrateSensor=()=>{
+    if(this._ble&&this._ble.connected){ this.pushNarr('Recalibrating — aim the sensor at white…','info'); this.setState({calibTxt:'…'}); this._ble.calibrate().then(d=>{ const ok=!!d; this.setState({calibTxt:ok?'calibrated':'failed'}); this.pushNarr(ok?('White balance set · R×'+d.wb[0].toFixed(2)+' G×'+d.wb[1].toFixed(2)+' B×'+d.wb[2].toFixed(2)):'Calibration failed.', ok?'win':'warn'); }).catch(()=>this.setState({calibTxt:'failed'})); return; }
+    if(!(this._be&&this._be.recalibrate)) { this.pushNarr('No hub or Bluetooth connected to recalibrate.','warn'); return; }
+    this.pushNarr('Recalibrating sensor white balance…','info'); this.setState({calibTxt:'…'}); this._be.recalibrate().then(d=>{ const ok=d&&d.status==='ok'; this.setState({calibTxt:ok?'calibrated':'calib failed'}); this.pushNarr(ok?('White balance set · R×'+d.wb[0].toFixed(2)+' G×'+d.wb[1].toFixed(2)+' B×'+d.wb[2].toFixed(2)):'Recalibration failed.', ok?'win':'warn'); }).catch(()=>{ this.setState({calibTxt:'no hub'}); });
+  };
+  reloadCfg=()=>{ if(this._be&&this._be.reloadConfig){ this._be.reloadConfig().then(()=>this.pushNarr('Hub config reloaded — pin map re-pushed.','info')).catch(()=>{}); } };
+
+  calcKeysTab=()=>this.setState({ calcTab:'keys' });
+  calcFxTab=()=>this.setState({ calcTab:'fx' });
+  calcClear=()=>this.setState({ calc:{display:'0', acc:null, op:null, fresh:true} });
+  calcBack=()=>this.setState(s=>{ const d=s.calc.display; return { calc:{...s.calc, display:d.length>1?d.slice(0,-1):'0'} }; });
+  calcInput(key){
+    this.setState(prev=>{
+      let {display,acc,op,fresh}={...prev.calc}; const cur=()=>parseFloat(display)||0;
+      if(/[0-9]/.test(key)){ display=(fresh||display==='0')?key:display+key; fresh=false; }
+      else if(key==='.'){ if(fresh){display='0.';fresh=false;} else if(!display.includes('.')) display+='.'; }
+      else if(key==='±'){ display=String(cur()*-1); }
+      else if(key==='√'){ display=String(Math.round(Math.sqrt(Math.abs(cur()))*1e6)/1e6); fresh=true; }
+      else if(key==='x²'){ display=String(Math.round(cur()*cur()*1e6)/1e6); fresh=true; }
+      else if(key==='1/x'){ display=String(cur()?Math.round((1/cur())*1e6)/1e6:0); fresh=true; }
+      else if(key==='='){ if(op!=null&&acc!=null){ display=String(this.calcOp(acc,cur(),op)); acc=null; op=null; fresh=true; } }
+      else { if(op!=null&&acc!=null&&!fresh){ acc=this.calcOp(acc,cur(),op); display=String(acc); } else acc=cur(); op=key; fresh=true; }
+      if(display.length>12) display=String(parseFloat(parseFloat(display).toPrecision(10)));
+      return { calc:{display,acc,op,fresh} };
+    });
+  }
+  calcOp(a,b,op){ const r=op==='+'?a+b:op==='−'?a-b:op==='×'?a*b:op==='÷'?(b===0?0:a/b):b; return Math.round(r*1e8)/1e8; }
+  setEq(id,key){ return (e)=>{ const v=e.target.value; this.setState(s=>({ eq:{...s.eq, [id]:{...s.eq[id], [key]:v}} })); }; }
+
+  setChatInput=(e)=>this.setState({ chatInput:e.target.value });
+  chatKey=(e)=>{ if(e.key==='Enter') this.sendChat(); };
+  sendChat=(q)=>{ const text=(typeof q==='string'?q:this.state.chatInput).trim(); if(!text) return; this.setState(prev=>({ chat:prev.chat.concat([{role:'user',text},{role:'sys',text:this.respond(text)}]), chatInput:'' })); };
+  respond(q){
+    const s=this.state, ql=q.toLowerCase();
+    if(/why|drop|decay|amplitude|weaker|small/.test(ql)) return 'Amplitude is '+Math.round(s.amp*100)+'%. It decays as glucose (reducing power) is consumed; when it stays under the threshold for two cycles the controller pulses the glucose pump to restore the swing.';
+    if(/speed|fast|faster|period|slow|quick/.test(ql)){ const b=this.solve(s.targetHalfPeriod||25,'period'); return 'Half-period is '+s.halfPeriod.toFixed(1)+'s. More stirring introduces O₂ faster and shortens the blue phase — for a '+s.targetHalfPeriod+'s half-period set the stirrer near '+b.stir+' ('+Math.round(b.stir/255*100)+'%).'; }
+    if(/stall|stuck|stop|risk|fail/.test(ql)) return 'Stall risk is '+Math.round(s.stallRisk*100)+'% — it climbs with time since the last colour flip (90s = stalled). If it rises, pulse glucose or raise the stirrer to re-establish the cycle.';
+    if(/glucose|pump|feed|dose/.test(ql)) return 'Glucose pulses this run: '+s.glucosePulses+' ('+s.glucoseDoseMs+'ms each). Each bolus replenishes reducing power; the auto trigger fires when amplitude drops below '+s.ampThreshold+'%.';
+    if(/blue|colou?r|sensor|reading/.test(ql)) return 'Live blue intensity is '+s.blue.toFixed(2)+' ('+s.phase+' phase), read from the TCS34725 as (b−r) and normalized. The waveform you see is that signal over time.';
+    if(/stir|o2|oxygen|mix/.test(ql)) return 'Stirrer is at '+Math.round(s.stirrerOut/255*100)+'%. It sets the O₂ introduction rate — the primary knob for shaping oscillation period and amplitude.';
+    return 'I read the live colour sensor and the oscillation estimate. Ask me about amplitude, period/speed, stalling, glucose dosing, or the stirrer.';
+  }
+
+  renderVals(){
+    const s=this.state, pad=n=>String(n).padStart(2,'0');
+    const palettes={ Meadow:['rgba(120,140,108,.4)','rgba(150,140,180,.34)','rgba(200,170,110,.36)','rgba(122,140,156,.34)'], Clay:['rgba(196,128,96,.4)','rgba(206,150,96,.36)','rgba(176,140,96,.34)','rgba(160,120,140,.32)'], Mist:['rgba(122,140,156,.4)','rgba(150,140,180,.36)','rgba(120,140,108,.32)','rgba(150,160,150,.3)'] };
+    const pal=palettes[this.props.palette]||palettes.Meadow;
+    // Oscillation waveform: blue intensity over the recent history, index-mapped to width.
+    const Hh=s.hist, n=Hh.length, X=i=>n>1?(i/(n-1))*680:0, Y=v=>196-Math.max(0,Math.min(1,v))*178;
+    let ourPath,basePath;
+    if(this._pc&&this._pc.hist===Hh){ ourPath=this._pc.o; basePath=this._pc.b; } else { ourPath=n?Hh.map((p,i)=>(i?'L':'M')+X(i).toFixed(1)+' '+Y(p.blue).toFixed(1)).join(' '):''; basePath=n?('M0 '+Y(0.5).toFixed(1)+' L680 '+Y(0.5).toFixed(1)):''; this._pc={hist:Hh,o:ourPath,b:basePath}; }
+    const kindColor={ info:'#2e2b24', dim:'rgba(46,43,36,.55)', warn:'#94762f', win:'#566e4b' };
+    const narrFeed=s.narr.slice().reverse().map((m,i)=>({ txt:m.txt, color:kindColor[m.kind]||'#2e2b24', size:i===0?'14.5px':'13px', weight:i===0?'500':'400' }));
+    const chatMsgs=s.chat.map(c=>({ text:c.text, align:c.role==='user'?'flex-end':'flex-start', bg:c.role==='user'?'#6f8466':'rgba(255,255,255,.55)', color:c.role==='user'?'#fbf8f2':'#2e2b24' }));
+    const stall=s.stallRisk, stallCol=stall<0.5?'#94762f':stall<0.8?'#b06a45':'#9c4a3c';
+    const active=(s.drag&&s.drag.id)||(s.resize&&s.resize.id); const pf={};
+    for(const id in s.panels){ const p=s.panels[id]; const live=(active===id); pf[id]={ tf:`translate3d(${p.x.toFixed(1)}px,${p.y.toFixed(1)}px,0)`, z:(p.zi||1)+(live?1000:0), w:p.w+'px', h:p.h+'px', open:p.open, title:this.labels[id], resize:this.resizeH[id], trans:live?'none':'transform .5s cubic-bezier(.4,0,.2,1), width .5s cubic-bezier(.4,0,.2,1), height .5s cubic-bezier(.4,0,.2,1)' }; }
+    const dockTabs=this.panelIds.filter(id=>s.panels[id] && !s.panels[id].open).map(id=>({ id, label:this.labels[id], h:this.openH[id] }));
+    const contentHpx=this.deskContentH(s.panels);
+    const pr=this.predict(s.mode==='manual'?s.stirrer:s.stirrerOut);
+    const sol=this.solve(s.targetHalfPeriod,s.solveMode);
+    const solveTxt='target '+s.targetHalfPeriod+'s → stirrer '+sol.stir+' ('+Math.round(sol.stir/255*100)+'%), amp ~'+Math.round(sol.amp*100)+'%';
+    const predHzColor=stallCol;
+    const ang=(val,min,max)=>(((val-min)/(max-min))*270-135).toFixed(0)+'deg';
+    // equation library list + selected-equation detail
+    const eqList=this.eqLib.map(d=>({ name:d.name, expr:d.expr, sel:()=>this.selectEq(d.id) }));
+    const eqSelDef=this.eqLib.find(d=>d.id===s.eqSel)||null;
+    let eqDetail={ name:'', expr:'', desc:'', fields:[], result:'—', unit:'', clear:()=>{}, conv:false, normal:false, tempC:'', tempF:'' };
+    if(eqSelDef){
+      const bag=s.eq[eqSelDef.id]||{};
+      if(eqSelDef.converter){ eqDetail={ name:eqSelDef.name, expr:eqSelDef.expr, desc:eqSelDef.desc, conv:true, normal:false, fields:[], result:'', unit:'', clear:()=>this.clearEq(eqSelDef.id), tempC:(s.eq.temp&&s.eq.temp.c)||'', tempF:(s.eq.temp&&s.eq.temp.f)||'' }; }
+      else { const v={}; let ok=true; eqSelDef.fields.forEach(([lab,key])=>{ const raw=bag[key]; const num=parseFloat(raw); v[key]=isNaN(num)?0:num; if(raw===undefined||raw==='') ok=false; }); const res=ok?eqSelDef.fn(v):null;
+        eqDetail={ name:eqSelDef.name, expr:eqSelDef.expr, desc:eqSelDef.desc, conv:false, normal:true, clear:()=>this.clearEq(eqSelDef.id), tempC:'', tempF:'',
+          fields:eqSelDef.fields.map(([label,key,unit])=>({ label, unit:unit||'', val:bag[key]??'', h:this.setEq(eqSelDef.id,key) })),
+          result: res==null?'—':Number(res.toFixed(eqSelDef.dp)).toLocaleString(), unit: res==null?'':eqSelDef.unit };
+      }
+    }
+    // colour capture log
+    const capturesList=s.captures.map((c,i)=>({ color:c.color, blueTxt:c.blue+'%', metaTxt:'amp '+c.amp+'% · '+c.period+'s · '+c.phase+' · cyc '+c.cycles, subTxt:'stir '+c.stirrer+'% · t '+c.t+'s · run '+pad(c.run), rgbTxt:'R'+c.rgb[0]+' G'+c.rgb[1]+' B'+c.rgb[2], selBg:s.compareSel.indexOf(i)>=0?'rgba(86,110,75,.22)':'rgba(255,255,255,.32)', selBorder:s.compareSel.indexOf(i)>=0?'#566e4b':'rgba(59,55,47,.12)', pick:()=>this.toggleCompareSel(i) }));
+    const compareList=s.compareSel.map(i=>s.captures[i]).filter(Boolean).map(c=>({ color:c.color, blueTxt:c.blue+'%', l1:'amp '+c.amp+'%', l2:c.period+'s', l3:c.phase, l4:'cyc '+c.cycles, l5:'stir '+c.stirrer+'%' }));
+    // home-screen floating phages (mouse-reactive tilt on top of the drift physics)
+    const lm=this._lm&&(Date.now()-this._lm.t<2600)?this._lm:null;
+    const landingBodies=s.bodies.map(o=>{ let tx=0,ty=0; if(lm){ ty=Math.max(-30,Math.min(30,(lm.x-o.x)/13)); tx=Math.max(-30,Math.min(30,-(lm.y-o.y)/13)); } return { id:o.id, tf:`translate3d(${o.x.toFixed(1)}px,${o.y.toFixed(1)}px,0) rotateX(${tx.toFixed(1)}deg) rotateY(${ty.toFixed(1)}deg) scale(${o.scale})`, spinS:o.spin+'s', op:(o.kind==='full'?1:0.55).toFixed(2) }; });
+    const runsList=[{ label:'RUN '+pad(s.runIndex), color:'#6f8466', yieldTxt:s.running?'live':'paused', yieldColor:'#566e4b', statusDot:'#6f8466', rowBg:'rgba(111,132,102,.12)', recolor:()=>{} }].concat(s.runs.slice().reverse().map((r)=>{ const realIdx=s.runs.indexOf(r); return { label:'RUN '+pad(r.n), color:r.color, yieldTxt:r.cycles+' cyc', yieldColor:'#94762f', statusDot:'rgba(46,43,36,.3)', rowBg:'rgba(255,255,255,.3)', recolor:()=>this.recolorRun(realIdx) }; }));
+    return {
+      watchRace:this.watchRace, goHome:this.goHome,
+      phageFaces:this.phage.faces, phageLines:this.phage.lines, phageFibers:this.phage.fibers, phageDots:this.phage.dots, bpT:this.phage.bpT, bpRingW:this.phage.rS.toFixed(1)+'px',
+      landingBodies, landingRef:this.landingRef, onLandingMove:this.onLandingMove,
+      sensorRgbTxt:'R '+s.rgb[0]+'  G '+s.rgb[1]+'  B '+s.rgb[2], sensorLux:String(s.lux),
+      landingOpacity:s.onLanding?'1':'0', landingPE:s.onLanding?'auto':'none', landingTransform:s.onLanding?'scale(1)':'scale(1.05)',
+      consoleOpacity:s.onLanding?'0':'1', consolePE:s.onLanding?'none':'auto', enter:this.enter,
+      wcOpacity:String(this.props.watercolor??0.85), blobA:pal[0], blobB:pal[1], blobC:pal[2], blobD:pal[3],
+      scrollRef:this.scrollRef, stageTransform:s.uiZoom===1?'none':'scale('+s.uiZoom+')', spacerW:(s.stageW*s.uiZoom).toFixed(0)+'px', spacerH:(contentHpx*s.uiZoom).toFixed(0)+'px', stageWpx:s.stageW.toFixed(0)+'px', stageHpx:contentHpx.toFixed(0)+'px',
+      zoomTxt:Math.round(s.uiZoom*100)+'%', zoomIn:this.zoomIn, zoomOut:this.zoomOut, zoomReset:this.zoomReset, tidyDesk:this.tidyDesk,
+      toggleRun:this.toggleRun, remelt:this.remelt, bump:this.bump, manualFire:this.manualFire,
+      runLabel:s.running?'PAUSE':'RUN', runLabel2:'RUN '+pad(s.runIndex),
+      statusTxt:s.running?'LIVE':'PAUSED', statusDot:s.running?'#6f8466':'#94762f', clockTxt:s.t.toFixed(1)+'s',
+      sourceTxt:s.source==='ble'?'⌁ BLUETOOTH':s.source==='hub'?'⬡ HARDWARE':'◌ SIMULATION', sourceColor:(s.source==='ble'||s.source==='hub')?'#566e4b':'rgba(46,43,36,.45)',
+      bleConnect:this.bleConnect, bleLabel:s.source==='ble'?'⌁ connected':'⌁ connect', bleBg:s.source==='ble'?'rgba(86,110,75,.18)':'rgba(111,132,102,.12)', bleColor:'#566e4b',
+      openSettings:this.openSettings, closeSettings:this.closeSettings, settingsOpen:s.settingsOpen,
+      bleName:s.bleName, setBleName:this.setBleName, bleReconnect:this.bleReconnect, bleDisconnect:this.bleDisconnect,
+      bleConnected:s.source==='ble', bleStateTxt:(s.source==='ble'?'connected':(s.bleStatus||'not connected')), bleKnownTxt:s.bleKnown?(s.bleKnown+' known device'+(s.bleKnown>1?'s':'')):'no granted devices yet',
+      bleSupTxt:(window.PhagenticBLE&&window.PhagenticBLE.supported())?'':'⚠ This browser has no Web Bluetooth — use Chrome or Edge over https/localhost.',
+      panels:pf, dragH:this.dragH, closeH:this.closeH, stopProp:(e)=>e.stopPropagation(), dockTabs,
+      animTrans:s.animating?'transform .5s cubic-bezier(.4,0,.2,1), width .5s cubic-bezier(.4,0,.2,1), height .5s cubic-bezier(.4,0,.2,1)':'none',
+      vesselColor:'rgb('+s.rgb.join(',')+')',
+      captureColor:this.captureColor, clearCaptures:this.clearCaptures, toggleCompare:this.toggleCompare, compareMode:s.compareMode, capturesList, compareList,
+      captureCountTxt:s.captures.length?(s.captures.length+' saved'):'none saved', compareBtnTxt:s.compareMode?'done':'compare',
+      eqList, eqLibMode:(s.calcTab==='fx'&&!s.eqSel), eqDetailMode:(s.calcTab==='fx'&&!!s.eqSel),
+      eqName:eqDetail.name, eqExpr:eqDetail.expr, eqDesc:eqDetail.desc, eqFields:eqDetail.fields, eqResult:eqDetail.result, eqUnit:eqDetail.unit, eqClear:eqDetail.clear, eqConv:eqDetail.conv, eqNormal:eqDetail.normal, eqTempC:eqDetail.tempC, eqTempF:eqDetail.tempF, setTempC:this.setTempC, setTempF:this.setTempF, eqBack:this.eqBack,
+      tempOursTxt:Math.round(s.blue*100)+'%', tempBaseTxt:Math.round(s.amp*100)+'%', oursSolidTxt:s.phase.toUpperCase(), baseSolidTxt:'tgt '+s.ampThreshold+'%',
+      oursCryst:s.blue.toFixed(2), baseCryst:s.amp.toFixed(2), oursGlow:s.glucoseActive?'0 0 34px rgba(148,118,47,.55)':'0 0 6px rgba(95,115,85,0)',
+      turbidity:s.blue.toFixed(2), turbidityTxt:s.blue.toFixed(2),
+      progressPct:Math.min(100,s.t/1200*100).toFixed(1)+'%', ourPath, basePath, baseFired:false, oursFired:false,
+      baseMarkX:'-10', oursMarkX:'-10',
+      superPct:Math.round(s.amp*100), superW:(s.amp*100).toFixed(0)+'%', titerTxt:s.halfPeriod.toFixed(1)+'s', hazPct:Math.round(s.stallRisk*100), hazW:(s.stallRisk*100).toFixed(0)+'%', hazColor:stallCol,
+      telemetry:[{k:'BLUE', v:Math.round(s.blue*100)+'%', c:'#566e4b'},{k:'AMP', v:Math.round(s.amp*100)+'%', c:'#2e2b24'},{k:'PERIOD', v:s.period.toFixed(1)+'s', c:'#94762f'},{k:'CYCLES', v:String(s.cycles), c:'#2e2b24'},{k:'STIRRER', v:Math.round(s.stirrerOut/255*100)+'%', c:'#2e2b24'},{k:'POLICY', v:s.mode==='auto'?'AUTO':'MANUAL', c:s.mode==='auto'?'#566e4b':'#94762f'}],
+      rewardTxt:String(s.cycles), lastYieldTxt:s.period?('~'+s.period.toFixed(0)+'s'):'—', narrFeed,
+      autoSegBg:s.mode==='auto'?'#6f8466':'transparent', autoSegColor:s.mode==='auto'?'#fbf8f2':'rgba(46,43,36,.7)', manSegBg:s.mode==='manual'?'#94762f':'transparent', manSegColor:s.mode==='manual'?'#fbf8f2':'rgba(46,43,36,.7)',
+      setAuto:this.setAuto, setManual:this.setManual, knobsOpacity:s.mode==='manual'?'1':'.5',
+      knobCool:this.knobCool, knobMoi:this.knobMoi, knobThr:this.knobThr,
+      stirFill:(s.stirrer/255*100).toFixed(0)+'%', gluFill:((s.glucoseDoseMs-50)/1950*100).toFixed(0)+'%', ampFill:((s.ampThreshold-5)/90*100).toFixed(0)+'%',
+      coolVal:Math.round(s.stirrer), moiVal:Math.round(s.glucoseDoseMs), thrVal:Math.round(s.ampThreshold), setCool:this.setCool, setMoi:this.setMoi, setThr:this.setThr,
+      predFireTxt:pr.halfP.toFixed(1)+'s', predSolidTxt:Math.round(pr.amp*100)+'%', predYTxt:pr.period.toFixed(1)+'s', predHzTxt:Math.round(s.stallRisk*100)+'%', predHzColor,
+      targetVal:s.targetHalfPeriod, setTarget:this.setTarget, solveMode:s.solveMode, setSolveEq:this.setSolveEq, setSolveEnergy:this.setSolveEnergy,
+      solveEqBg:s.solveMode==='period'?'#6f8466':'transparent', solveEqColor:s.solveMode==='period'?'#fbf8f2':'rgba(46,43,36,.7)', solveEnBg:s.solveMode==='stir'?'#6f8466':'transparent', solveEnColor:s.solveMode==='stir'?'#fbf8f2':'rgba(46,43,36,.7)',
+      solveTxt, applySolve:this.applySolve,
+      pulseNaoh:this.pulseNaoh, naohBg:s.naohActive?'#94762f':'transparent', naohColor:s.naohActive?'#fbf8f2':'#94762f',
+      lightVal:Math.round(s.light), lightPct:Math.round(s.light/255*100)+'%', setLight:this.setLight,
+      recalibrateSensor:this.recalibrateSensor, reloadCfg:this.reloadCfg, calibTxt:s.calibTxt,
+      calcDisplay:s.calc.display, calcKeys:this.calcKeys, calcKeysMode:s.calcTab==='keys', calcFxMode:s.calcTab==='fx', calcKeysTab:this.calcKeysTab, calcFxTab:this.calcFxTab, calcClear:this.calcClear, calcBack:this.calcBack,
+      calcKeysColor:s.calcTab==='keys'?'#2e2b24':'rgba(46,43,36,.4)', calcFxColor:s.calcTab==='fx'?'#2e2b24':'rgba(46,43,36,.4)',
+      chatMsgs, chips:this.chips, chatInput:s.chatInput, setChatInput:this.setChatInput, chatKey:this.chatKey, sendChat:this.sendChat, chatRef:this.chatRef,
+      runsList, addRun:this.addRun,
+    };
+  }
+}
+</script>
+</body>
+</html>
