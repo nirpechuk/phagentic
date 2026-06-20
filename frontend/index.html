@@ -529,30 +529,21 @@
         </div>
       </sc-for>
     </div>
-    <header style="position:relative; z-index:3; display:flex; align-items:center; justify-content:space-between; padding:30px 44px;">
+    <header style="position:relative; z-index:3; display:flex; align-items:center; justify-content:space-between; padding:30px 44px 30px 64px;">
       <div style="font-family:'Instrument Serif',serif; font-style:italic; font-weight:400; font-size:30px; letter-spacing:.01em; background:linear-gradient(100deg,#6f8466,#847ea6 52%,#6f8499); -webkit-background-clip:text; background-clip:text; color:transparent;">Phagentic</div>
       <div style="font-family:'JetBrains Mono',monospace; font-size:11.5px; letter-spacing:.16em; color:rgba(46,43,36,.5);">PHAGE&nbsp;FOUNDRY&nbsp;·&nbsp;2026</div>
     </header>
     <div style="position:absolute; inset:0; z-index:2; display:grid; grid-template-columns:1.05fr 1fr; align-items:center;">
       <div style="padding:0 44px 0 64px; max-width:660px;">
         <div style="font-family:'JetBrains Mono',monospace; font-size:12.5px; letter-spacing:.2em; color:#6f7a5c;">A&nbsp;WORLD-MODEL&nbsp;CONTROLLER&nbsp;FOR&nbsp;OSCILLATING&nbsp;REACTIONS</div>
-        <h1 style="font-family:'Space Grotesk',sans-serif; font-weight:500; font-size:72px; line-height:1.02; letter-spacing:-.02em; margin:24px 0 0; color:#2e2b24;">
-          Every culture has<br>one <span style="font-family:'Instrument Serif',serif; font-style:italic; font-weight:400; font-size:84px; background:linear-gradient(100deg,#6f8466,#847ea6 52%,#6f8499); -webkit-background-clip:text; background-clip:text; color:transparent;">perfect moment.</span>
+        <h1 style="font-family:'Space Grotesk',sans-serif; font-weight:500; font-size:72px; line-height:1.06; letter-spacing:-.02em; margin:24px 0 0; color:#2e2b24;">
+          Every culture<br>has one<br><span style="display:inline-block; padding:.04em .1em .12em; margin-left:-.1em; font-family:'Instrument Serif',serif; font-style:italic; font-weight:400; font-size:84px; line-height:1; background:linear-gradient(100deg,#6f8466,#847ea6 52%,#6f8499); -webkit-background-clip:text; background-clip:text; color:transparent;">perfect moment.</span>
         </h1>
-        <p style="font-size:17px; line-height:1.62; color:rgba(46,43,36,.68); max-width:486px; margin:28px 0 0;">An oscillating reaction lives and dies on timing — blue, then colorless, then blue again. <span style="color:#2e2b24; font-weight:500;">PHAGENTIC</span> watches the live colour, estimates amplitude and period in real time, and drives the stirrer and glucose pump to hold the rhythm. Not a fixed recipe — a closed loop.</p>
-        <div style="display:flex; align-items:center; gap:30px; margin-top:40px;">
+        <div style="margin-top:44px;">
           <button onClick="{{ enter }}" style="cursor:pointer; background:none; border:none; padding:5px 0; font-family:'JetBrains Mono',monospace; font-size:13px; font-weight:600; letter-spacing:.12em; color:#566e4b; border-bottom:2px solid #6f8466;" style-hover="border-bottom-color:#2e2b24;">ENTER THE CONSOLE →</button>
-          <button onClick="{{ enter }}" style="cursor:pointer; background:none; border:none; padding:5px 0; font-family:'JetBrains Mono',monospace; font-size:13px; letter-spacing:.12em; color:rgba(46,43,36,.62); border-bottom:1px solid rgba(59,55,47,.28);" style-hover="color:#2e2b24;">WATCH IT OSCILLATE</button>
-        </div>
-        <div style="display:flex; gap:30px; margin-top:46px; font-family:'JetBrains Mono',monospace;">
-          <div><div style="font-size:24px; font-weight:600; color:#566e4b;">10+</div><div style="font-size:9.5px; color:rgba(46,43,36,.5); letter-spacing:.06em; margin-top:5px;">CYCLES&nbsp;/&nbsp;RUN</div></div>
-          <div style="border-left:1px solid rgba(59,55,47,.18); padding-left:30px;"><div style="font-size:24px; font-weight:600; color:#2e2b24;">20min</div><div style="font-size:9.5px; color:rgba(46,43,36,.5); letter-spacing:.06em; margin-top:5px;">ACTIVE&nbsp;RUN</div></div>
-          <div style="border-left:1px solid rgba(59,55,47,.18); padding-left:30px;"><div style="font-size:24px; font-weight:600; color:#2e2b24;">&lt;1s</div><div style="font-size:9.5px; color:rgba(46,43,36,.5); letter-spacing:.06em; margin-top:5px;">SENSE&nbsp;→&nbsp;ACT</div></div>
         </div>
       </div>
-      <div style="position:relative; height:100%; display:flex; align-items:flex-end; justify-content:center; perspective:1100px;">
-        <div style="position:absolute; bottom:11%; font-family:'JetBrains Mono',monospace; font-size:11.5px; letter-spacing:.16em; color:rgba(46,43,36,.45);">ICOSAHEDRAL&nbsp;CAPSID&nbsp;·&nbsp;CONTRACTILE&nbsp;TAIL</div>
-      </div>
+      <div style="position:relative; height:100%; perspective:1100px;"></div>
     </div>
   </div>
 </div>
@@ -621,7 +612,7 @@ class Component extends DCLogic {
       captures:[], compareMode:false, compareSel:[], animating:false,
       landW:1320, landH:760,
       bodies:[
-        {id:'hero', x:920, y:400, vx:0.45, vy:0.35, scale:0.82, kind:'full', spin:26},
+        {id:'hero', x:920, y:300, vx:0.45, vy:0.35, scale:0.82, kind:'full', spin:21},
       ],
     };
     this.resetProc(0);
@@ -857,7 +848,11 @@ class Component extends DCLogic {
     const rS=rBp*2, bpT=`translate3d(${(-rS/2).toFixed(1)}px,${(bpY-rS/2).toFixed(1)}px,${(-rS/2).toFixed(1)}px) rotateX(90deg)`;
     return { lines, faces, fibers, dots, bpT, rS };
   }
-  measureLanding(){ if(!this._land) return; const r=this._land.getBoundingClientRect(); if(r.width<60) return; this.setState(s=>{ const W=r.width,H=r.height; const b=s.bodies.map(o=>({...o, x:Math.max(60,Math.min(W-60,o.x)), y:Math.max(60,Math.min(H-60,o.y))})); return { landW:W, landH:H, bodies:b }; }); }
+  // Bounding insets for a phage body at the given scale, about its capsid-centre
+  // anchor: the apex reaches up, the tail + fibres reach far below. Shared by the
+  // drift loop and the resize clamp so the whole body always stays on screen.
+  phagePads(scale){ return { x:150*scale, top:130*scale, bot:445*scale }; }
+  measureLanding(){ if(!this._land) return; const r=this._land.getBoundingClientRect(); if(r.width<60) return; this.setState(s=>{ const W=r.width,H=r.height; const b=s.bodies.map(o=>{ const p=this.phagePads(o.scale); return {...o, x:Math.max(p.x,Math.min(Math.max(p.x,W-p.x),o.x)), y:Math.max(p.top,Math.min(Math.max(p.top,H-p.bot),o.y))}; }); return { landW:W, landH:H, bodies:b }; }); }
   landingRef=(el)=>{ this._land=el; };
   onLandingMove=(e)=>{ if(!this._land) return; const r=this._land.getBoundingClientRect(); this._lm={x:e.clientX-r.left, y:e.clientY-r.top, t:Date.now()}; };
   // Floating physics: gentle drift, speed clamps, wall bounce, and mouse repulsion
@@ -867,15 +862,20 @@ class Component extends DCLogic {
     this.setState(s=>{
       const W=s.landW,H=s.landH,m=this._lm&&(Date.now()-this._lm.t<260)?this._lm:null;
       const bodies=s.bodies.map(o=>{
-        let {x,y,vx,vy}=o; const mar=o.scale*120+40;
+        let {x,y,vx,vy}=o; const sc=o.scale;
+        // Insets sized to the phage's real extent about its capsid-centre anchor
+        // (apex reaches up, the tail + fibres reach far below) so the whole body
+        // bounces inside a snug container and never clips offscreen.
+        const p=this.phagePads(sc), padX=p.x, padTop=p.top, padBot=p.bot;
         if(m){ const dx=x-m.x, dy=y-m.y, d=Math.hypot(dx,dy), R=200; if(d<R&&d>0.1){ const f=(R-d)/R*1.1; vx+=dx/d*f; vy+=dy/d*f; } }
         vx+=Math.sin((Date.now()/1700)+x*0.01)*0.012; vy+=Math.cos((Date.now()/1900)+y*0.01)*0.012;
-        const sp=Math.hypot(vx,vy), cap=2.0; if(sp>cap){ vx=vx/sp*cap; vy=vy/sp*cap; }
-        if(sp<0.32){ const k=0.32/(sp||1); vx*=k; vy*=k; }
+        const sp=Math.hypot(vx,vy), cap=2.6; if(sp>cap){ vx=vx/sp*cap; vy=vy/sp*cap; }
+        if(sp<0.5){ const k=0.5/(sp||1); vx*=k; vy*=k; }
         x+=vx; y+=vy;
-        const loX=o.id==='hero'?Math.max(mar,W*0.46):mar, hiX=W-mar;
+        const loX=o.id==='hero'?Math.max(padX,W*0.46):padX, hiX=Math.max(loX,W-padX);
+        const loY=padTop, hiY=Math.max(loY,H-padBot);
         if(x<loX){ x=loX; vx=Math.abs(vx); } if(x>hiX){ x=hiX; vx=-Math.abs(vx); }
-        if(y<mar){ y=mar; vy=Math.abs(vy); } if(y>H-mar){ y=H-mar; vy=-Math.abs(vy); }
+        if(y<loY){ y=loY; vy=Math.abs(vy); } if(y>hiY){ y=hiY; vy=-Math.abs(vy); }
         vx*=0.995; vy*=0.995;
         return {...o, x,y,vx,vy};
       });
@@ -1065,9 +1065,10 @@ class Component extends DCLogic {
     // colour capture log
     const capturesList=s.captures.map((c,i)=>({ color:c.color, blueTxt:c.blue+'%', metaTxt:'amp '+c.amp+'% · '+c.period+'s · '+c.phase+' · cyc '+c.cycles, subTxt:'stir '+c.stirrer+'% · t '+c.t+'s · run '+pad(c.run), rgbTxt:'R'+c.rgb[0]+' G'+c.rgb[1]+' B'+c.rgb[2], selBg:s.compareSel.indexOf(i)>=0?'rgba(86,110,75,.22)':'rgba(255,255,255,.32)', selBorder:s.compareSel.indexOf(i)>=0?'#566e4b':'rgba(59,55,47,.12)', pick:()=>this.toggleCompareSel(i) }));
     const compareList=s.compareSel.map(i=>s.captures[i]).filter(Boolean).map(c=>({ color:c.color, blueTxt:c.blue+'%', l1:'amp '+c.amp+'%', l2:c.period+'s', l3:c.phase, l4:'cyc '+c.cycles, l5:'stir '+c.stirrer+'%' }));
-    // home-screen floating phages (mouse-reactive tilt on top of the drift physics)
-    const lm=this._lm&&(Date.now()-this._lm.t<2600)?this._lm:null;
-    const landingBodies=s.bodies.map(o=>{ let tx=0,ty=0; if(lm){ ty=Math.max(-30,Math.min(30,(lm.x-o.x)/13)); tx=Math.max(-30,Math.min(30,-(lm.y-o.y)/13)); } return { id:o.id, tf:`translate3d(${o.x.toFixed(1)}px,${o.y.toFixed(1)}px,0) rotateX(${tx.toFixed(1)}deg) rotateY(${ty.toFixed(1)}deg) scale(${o.scale})`, spinS:o.spin+'s', op:(o.kind==='full'?1:0.55).toFixed(2) }; });
+    // home-screen floating phages — drift physics only. The spin3d animation
+    // supplies the 3D feel; we deliberately don't add a mouse-driven tilt (its
+    // extreme rotateX near the top edge re-rasterized the layer and flickered).
+    const landingBodies=s.bodies.map(o=>({ id:o.id, tf:`translate3d(${o.x.toFixed(1)}px,${o.y.toFixed(1)}px,0) scale(${o.scale})`, spinS:o.spin+'s', op:(o.kind==='full'?1:0.55).toFixed(2) }));
     const runsList=[{ label:'RUN '+pad(s.runIndex), color:'#6f8466', yieldTxt:s.running?'live':'paused', yieldColor:'#566e4b', statusDot:'#6f8466', rowBg:'rgba(111,132,102,.12)', recolor:()=>{} }].concat(s.runs.slice().reverse().map((r)=>{ const realIdx=s.runs.indexOf(r); return { label:'RUN '+pad(r.n), color:r.color, yieldTxt:r.cycles+' cyc', yieldColor:'#94762f', statusDot:'rgba(46,43,36,.3)', rowBg:'rgba(255,255,255,.3)', recolor:()=>this.recolorRun(realIdx) }; }));
     return {
       watchRace:this.watchRace, goHome:this.goHome,
