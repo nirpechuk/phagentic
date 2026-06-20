@@ -1,0 +1,16 @@
+
+
+      <!-- DOCK RAIL (closed tools) -->
+      <div style="position:absolute; right:10px; top:50%; transform:translateY(-50%); display:flex; flex-direction:column; gap:9px; z-index:55; align-items:flex-end;">
+        <sc-for list="{{ dockTabs }}" as="d" hint-placeholder-count="1">
+          <button onClick="{{ d.h }}" title="open" style="cursor:pointer; display:flex; align-items:center; gap:8px; background:linear-gradient(150deg, rgba(255,254,250,.62), rgba(248,243,234,.34)); -webkit-backdrop-filter:blur(12px); backdrop-filter:blur(12px); border:1px solid rgba(255,255,255,.6); border-radius:11px 0 0 11px; box-shadow:0 12px 28px -16px rgba(70,60,48,.5); padding:9px 13px; font-family:'JetBrains Mono',monospace; font-size:12.5px; letter-spacing:.1em; color:rgba(46,43,36,.72);" style-hover="color:#2e2b24;">
+            <span style="width:7px; height:7px; border-radius:2px; background:#6f8466;"></span>{{ d.label }}
+          </button>
+        </sc-for>
+      </div>
+
+    </div>
+    </div>
+    </div>
+    </div>
+  </div>

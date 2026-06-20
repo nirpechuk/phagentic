@@ -1,0 +1,47 @@
+
+
+      <!-- COLOUR LOG -->
+      <sc-if value="{{ panels.swatch.open }}" hint-placeholder-val="{{ true }}">
+      <div style="position:absolute; left:0; top:0; width:{{ panels.swatch.w }}; height:{{ panels.swatch.h }}; transform:{{ panels.swatch.tf }}; z-index:{{ panels.swatch.z }}; border-radius:20px; background:linear-gradient(150deg, rgba(254,251,246,.72), rgba(247,242,233,.5)); -webkit-backdrop-filter:blur(14px) saturate(1.3); backdrop-filter:blur(14px) saturate(1.3); border:1px solid rgba(255,255,255,.62); box-shadow:0 24px 50px -26px rgba(70,60,48,.5), inset 0 1px 0 rgba(255,255,255,.85); display:flex; flex-direction:column; overflow:hidden; transition:{{ animTrans }};">
+        <div onMouseDown="{{ panels.swatch.resize }}" title="drag to resize" style="position:absolute; right:2px; bottom:2px; width:18px; height:18px; cursor:nwse-resize; z-index:6; border-right:2px solid rgba(59,55,47,.3); border-bottom:2px solid rgba(59,55,47,.3); border-bottom-right-radius:8px;"></div>
+        <div onMouseDown="{{ dragH.swatch }}" style="cursor:grab; padding:13px 16px 9px; display:flex; align-items:center; justify-content:space-between;">
+          <span style="font-family:'JetBrains Mono',monospace; font-size:12.5px; letter-spacing:.18em; color:rgba(46,43,36,.55);">COLOUR LOG</span>
+          <button onMouseDown="{{ stopProp }}" onClick="{{ closeH.swatch }}" style="cursor:pointer; background:none; border:none; color:rgba(46,43,36,.4); font-size:15px; line-height:1; padding:2px 4px;" style-hover="color:#2e2b24;">×</button>
+        </div>
+        <div style="flex:1; min-height:0; padding:4px 16px 16px; display:flex; flex-direction:column;">
+          <div style="display:flex; flex-direction:column; align-items:center;">
+            <div style="width:116px; height:116px; border-radius:50%; background:{{ vesselColor }}; border:1px solid rgba(255,255,255,.6); box-shadow:0 10px 26px -10px rgba(70,60,48,.5), inset 0 6px 18px rgba(255,255,255,.5), inset 0 -12px 24px rgba(0,0,0,.12); transition:background .12s linear;"></div>
+            <div style="font-family:'JetBrains Mono',monospace; font-size:22px; font-weight:600; color:#2e2b24; margin-top:9px;">{{ tempOursTxt }}</div>
+            <div style="font-family:'JetBrains Mono',monospace; font-size:12px; color:rgba(46,43,36,.5); margin-top:2px;">{{ sensorRgbTxt }}</div>
+          </div>
+          <div style="display:flex; gap:7px; margin-top:12px;">
+            <button onMouseDown="{{ stopProp }}" onClick="{{ captureColor }}" style="cursor:pointer; flex:1; background:#6f8466; border:none; border-radius:9px; padding:9px; font-family:'JetBrains Mono',monospace; font-size:13.5px; font-weight:600; color:#fbf8f2;" style-hover="background:#566e4b;">＋ capture</button>
+            <button onMouseDown="{{ stopProp }}" onClick="{{ toggleCompare }}" style="cursor:pointer; background:rgba(111,132,102,.14); border:1px solid rgba(111,132,102,.32); border-radius:9px; padding:9px 12px; font-family:'JetBrains Mono',monospace; font-size:13.5px; color:#566e4b;" style-hover="background:rgba(111,132,102,.24);">{{ compareBtnTxt }}</button>
+            <button onMouseDown="{{ stopProp }}" onClick="{{ clearCaptures }}" title="clear all" style="cursor:pointer; background:none; border:1px solid rgba(59,55,47,.2); border-radius:9px; padding:9px 11px; font-family:'JetBrains Mono',monospace; font-size:13.5px; color:rgba(46,43,36,.6);" style-hover="border-color:rgba(59,55,47,.4);">⌫</button>
+          </div>
+          <div style="font-family:'JetBrains Mono',monospace; font-size:11.5px; color:rgba(46,43,36,.45); margin-top:7px;">{{ captureCountTxt }}</div>
+          <sc-if value="{{ compareMode }}" hint-placeholder-val="{{ false }}">
+          <div style="display:flex; gap:8px; margin-top:10px; overflow-x:auto; padding-bottom:4px;">
+            <sc-for list="{{ compareList }}" as="c" hint-placeholder-count="2">
+              <div style="flex:none; width:90px; border:1px solid rgba(59,55,47,.14); border-radius:10px; overflow:hidden;">
+                <div style="height:52px; background:{{ c.color }};"></div>
+                <div style="padding:6px 7px; font-family:'JetBrains Mono',monospace; font-size:9.5px; color:rgba(46,43,36,.7); line-height:1.55;">{{ c.blueTxt }} blue<br>{{ c.l1 }}<br>{{ c.l2 }} · {{ c.l3 }}<br>{{ c.l4 }}<br>{{ c.l5 }}</div>
+              </div>
+            </sc-for>
+          </div>
+          <div style="font-family:'JetBrains Mono',monospace; font-size:11.5px; color:#566e4b; margin-top:6px;">tap saved colours below to compare (up to 3)</div>
+          </sc-if>
+          <div style="flex:1; min-height:0; overflow-y:auto; margin-top:11px; display:flex; flex-direction:column; gap:7px;">
+            <sc-for list="{{ capturesList }}" as="c" hint-placeholder-count="3">
+              <button onMouseDown="{{ stopProp }}" onClick="{{ c.pick }}" style="cursor:pointer; text-align:left; display:flex; align-items:center; gap:10px; padding:7px 9px; border-radius:10px; background:{{ c.selBg }}; border:1px solid {{ c.selBorder }};">
+                <span style="flex:none; width:34px; height:34px; border-radius:8px; background:{{ c.color }}; border:1px solid rgba(0,0,0,.1);"></span>
+                <span style="flex:1; min-width:0;">
+                  <span style="display:block; font-family:'JetBrains Mono',monospace; font-size:13px; color:#2e2b24;">{{ c.blueTxt }} blue · {{ c.metaTxt }}</span>
+                  <span style="display:block; font-family:'JetBrains Mono',monospace; font-size:11.5px; color:rgba(46,43,36,.5); margin-top:2px;">{{ c.subTxt }}</span>
+                </span>
+              </button>
+            </sc-for>
+          </div>
+        </div>
+      </div>
+      </sc-if>
