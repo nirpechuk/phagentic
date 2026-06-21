@@ -600,7 +600,7 @@ return class Component extends DCLogic {
       scrollRef:this.scrollRef, stageTransform:s.uiZoom===1?'none':'scale('+s.uiZoom+')', spacerW:(s.stageW*s.uiZoom).toFixed(0)+'px', spacerH:(contentHpx*s.uiZoom).toFixed(0)+'px', stageWpx:s.stageW.toFixed(0)+'px', stageHpx:contentHpx.toFixed(0)+'px',
       zoomTxt:Math.round(s.uiZoom*100)+'%', zoomIn:this.zoomIn, zoomOut:this.zoomOut, zoomReset:this.zoomReset, tidyDesk:this.tidyDesk,
       toggleRun:this.toggleRun, remelt:this.remelt, bump:this.bump, manualFire:this.manualFire,
-      runLabel:s.running?'PAUSE':'RUN', runLabel2:'RUN '+pad(s.runIndex),
+      runLabel:s.running?'PAUSE':'RUN', runLabel2:'RUN '+pad(s.runIndex), runIcon:s.running?'‖':'►',
       statusTxt:s.running?'LIVE':'PAUSED', statusDot:s.running?'#6f8466':'#94762f', clockTxt:s.t.toFixed(1)+'s',
       sourceTxt:s.source==='hub'?'⬡ HARDWARE':(s.live?'◌ NO DEVICE':'◌ OFFLINE'), sourceColor:s.source==='hub'?'#566e4b':'rgba(46,43,36,.45)',
       bleConnect:this.bleConnect, bleLabel:s.live?'⌁ connected':'⌁ connect', bleBg:s.live?'rgba(86,110,75,.18)':'rgba(111,132,102,.12)', bleColor:'#566e4b',
