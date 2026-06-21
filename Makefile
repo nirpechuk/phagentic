@@ -6,8 +6,13 @@ VENV   := hub/.venv
 PY     := $(VENV)/bin/python
 UI_PORT ?= 5173
 
+# Goal-seeking ML controller workflow (override on the CLI).
+RUN  ?= runs/run-$(shell date +%Y%m%d-%H%M%S).jsonl
+LOGS ?= runs/*.jsonl
+
 # ────────────────────────────────────────────────────────────────────────
-.PHONY: setup run backend dashboard ui chat upload detect test help
+.PHONY: setup run backend dashboard ui chat upload detect test help \
+        log-run fit replay probe
 
 help:
 	@echo ""
@@ -16,6 +21,13 @@ help:
 	@echo "  make setup      — create Python venv and install deps"
 	@echo "  make test       — run backend unit tests (no hardware needed)"
 	@echo "  make chat       — start the ASK PHAGE assistant backend (needs ANTHROPIC_API_KEY)"
+	@echo ""
+	@echo "  Goal-seeking controller (see backend/GOAL_CONTROLLER.md):"
+	@echo "  make log-run    — record the live state stream to a JSONL run log (RUN=path)"
+	@echo "  make fit        — fit the grey-box ODE from logs → backend/sim/fitted_params.json (LOGS=glob)"
+	@echo "  make replay     — offline sim-to-real check on a run log (RUN=path)"
+	@echo "  make probe      — observe the live state stream (PROBE_ARGS='--model goal_blue')"
+	@echo ""
 	@echo "  make run        — [legacy] stream RGB to terminal (set BLE_DEVICE to override name)"
 	@echo "  make dashboard  — [legacy] hub web dashboard with color + PWM sliders"
 	@echo "  make upload     — compile + flash ESP32 (set PORT to override port)"
@@ -44,6 +56,29 @@ backend:
 test:
 	@test -f $(PY) || (echo "Run 'make setup' first."; exit 1)
 	$(PY) -m pytest backend/tests -q
+
+# ── Goal-seeking controller workflow (no extra deps; pure-Python sim) ──────
+# Record a run while the backend is up; override the path with RUN=...
+log-run:
+	@test -f $(PY) || (echo "Run 'make setup' first."; exit 1)
+	$(PY) -m backend.tools.log_run --out $(RUN)
+
+# Fit the grey-box ODE to logged runs → backend/sim/fitted_params.json.
+# Override the input glob with LOGS='runs/a.jsonl runs/b.jsonl'.
+fit:
+	@test -f $(PY) || (echo "Run 'make setup' first."; exit 1)
+	$(PY) -m backend.sim.fit $(LOGS)
+
+# Offline sim-to-real check (phase slips + ODE prediction error) on one log.
+# Pass the file: make replay RUN=runs/validation.jsonl
+replay:
+	@test -f $(PY) || (echo "Run 'make setup' first."; exit 1)
+	$(PY) -m backend.tools.replay_eval $(RUN) --ode
+
+# Observe / drive the live stream. e.g. make probe PROBE_ARGS='--set-params {"goal_blue":0.7}'
+probe:
+	@test -f $(PY) || (echo "Run 'make setup' first."; exit 1)
+	$(PY) -m backend.tools.ws_probe $(PROBE_ARGS)
 
 run:
 	@test -f $(PY) || (echo "Run 'make setup' first."; exit 1)

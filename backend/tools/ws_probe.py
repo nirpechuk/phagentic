@@ -7,6 +7,8 @@ then exits. Useful for verifying the backend without the UI or hardware.
   python -m backend.tools.ws_probe                      # just observe
   python -m backend.tools.ws_probe --set stirrer 200    # manual set then observe
   python -m backend.tools.ws_probe --mode auto          # switch mode then observe
+  python -m backend.tools.ws_probe --model goal_blue     # select a model then observe
+  python -m backend.tools.ws_probe --set-params '{"goal_blue":0.7,"ideal_time":120}'
   python -m backend.tools.ws_probe --url ws://host:8080/ws --frames 10
 """
 import argparse
@@ -47,6 +49,9 @@ def main() -> None:
     ap.add_argument("--set", nargs=2, metavar=("ROLE", "VALUE"))
     ap.add_argument("--pulse", nargs=2, metavar=("ROLE", "MS"))
     ap.add_argument("--mode")
+    ap.add_argument("--model", metavar="NAME")
+    ap.add_argument("--set-params", dest="set_params", metavar="JSON",
+                    help='model params as JSON, e.g. \'{"goal_blue":0.7,"ideal_time":120}\'')
     args = ap.parse_args()
 
     command = None
@@ -61,6 +66,10 @@ def main() -> None:
         command = {"type": "pulse_actuator", "role": args.pulse[0], "ms": int(args.pulse[1])}
     elif args.mode:
         command = {"type": "set_mode", "mode": args.mode}
+    elif args.model:
+        command = {"type": "set_model", "name": args.model}
+    elif args.set_params:
+        command = {"type": "set_model_params", "params": json.loads(args.set_params)}
 
     asyncio.run(run(args.url, args.frames, command))
 
