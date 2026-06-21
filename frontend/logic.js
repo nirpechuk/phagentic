@@ -45,6 +45,7 @@ return class Component extends DCLogic {
     this._pins=this.pinsFromConfig(this._defaultConfig);   // sets this._pins + this._names from config
     this.state={
       onLanding:true, running:true, mode:'auto', cycling:false, bumped:false, uiZoom:1.0, live:false,
+      controller:'heuristic',   // AUTO model: 'heuristic' (phase scheduler) or 'mpc' (grey-box ODE)
       // setpoints (UI-owned; the in-browser control loop reads these)
       stirrer:150, glucoseDoseMs:500, ampThreshold:40, targetHalfPeriod:25, solveMode:'period', light:255, calibTxt:'', source:'off',
       targetBlue:0.7, targetTime:25, targetPhage:'251188642',   // targetTime = cycle period (s); phage count for targetBlue 0.7 (= 10^(12·0.7)−1)
@@ -542,7 +543,12 @@ return class Component extends DCLogic {
   // Launch: engage the goal model, zero the run clock, and commit the goal.
   // ideal_time is absolute seconds since run start, so after the reset it reads
   // as "reach target blue this many seconds from launch".
-  startCycling=()=>{ if(this._be){ this._be.setModel('goal_blue'); this._be.setMode('ml'); this._be.resetRun(); this._be.setModelParams({ goal_blue:this.state.targetBlue, target_period:this.state.targetTime }); } this.setState({ mode:'auto', running:true, cycling:true }); this.pushNarr('▶ Launched — cycling at '+this.state.targetTime+'s period.', 'win'); };
+  startCycling=()=>{ if(this._be){ this._be.setModel('goal_blue'); this._be.setMode('ml'); this._be.resetRun(); this._be.setModelParams({ goal_blue:this.state.targetBlue, target_period:this.state.targetTime, controller:this.state.controller }); } this.setState({ mode:'auto', running:true, cycling:true }); this.pushNarr('▶ Launched — cycling at '+this.state.targetTime+'s period.', 'win'); };
+  // Switch the AUTO controller live: the active goal_blue model accepts a
+  // `controller` param ('heuristic' | 'mpc') and swaps its planner on the fly.
+  setController=(c)=>{ if(c!=='heuristic'&&c!=='mpc') return; if(this._be) this._be.setModelParams({controller:c}); this.setState({ controller:c, mode:'auto' }); this.pushNarr('Controller → '+(c==='mpc'?'MPC (grey-box ODE planner)':'heuristic (phase scheduler)')+'.', 'info'); };
+  setHeuristic=()=>this.setController('heuristic');
+  setMpc=()=>this.setController('mpc');
   setSolveEq=()=>this.setState({ solveMode:'period' });
   setSolveEnergy=()=>this.setState({ solveMode:'stir' });
   applySolve=()=>{ const b=this.solve(this.state.targetHalfPeriod, this.state.solveMode); this._stirrerOut=b.stir; if(this.state.live) this.cmdSet('set_pwm','stirrer',b.stir); this.setState({ mode:'manual', stirrer:b.stir }); };
@@ -777,6 +783,9 @@ return class Component extends DCLogic {
       rewardTxt:String(s.cycles), lastYieldTxt:s.period?('~'+s.period.toFixed(0)+'s'):'—', narrFeed,
       autoSegBg:s.mode==='auto'?'#6f8466':'transparent', autoSegColor:s.mode==='auto'?'#fbf8f2':'rgba(46,43,36,.7)', manSegBg:s.mode==='manual'?'#94762f':'transparent', manSegColor:s.mode==='manual'?'#fbf8f2':'rgba(46,43,36,.7)',
       setAuto:this.setAuto, setManual:this.setManual, startCycling:this.startCycling, knobsOpacity:s.mode==='manual'?'1':'.5',
+      setHeuristic:this.setHeuristic, setMpc:this.setMpc,
+      heurSegBg:s.controller==='heuristic'?'#5f7fb0':'transparent', heurSegColor:s.controller==='heuristic'?'#fbf8f2':'rgba(46,43,36,.7)',
+      mpcSegBg:s.controller==='mpc'?'#5f7fb0':'transparent', mpcSegColor:s.controller==='mpc'?'#fbf8f2':'rgba(46,43,36,.7)',
       knobCool:this.knobCool, knobMoi:this.knobMoi, knobThr:this.knobThr, knobLight:this.knobLight,
       // read-only actuator status (ACTUATORS panel) — shows what the model is doing
       actPolicyTxt:s.mode==='auto'?'AUTO · model driving':'MANUAL · you driving', actPolicyColor:s.mode==='auto'?'#566e4b':'#94762f',
