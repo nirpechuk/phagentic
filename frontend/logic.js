@@ -373,6 +373,20 @@ return class Component extends DCLogic {
   openPanel(id){ const w=this.deskW(); this.setState(s=>{ const P={...s.panels}; P[id]={...P[id], open:true}; return { panels:this.packLayout(P, w), animating:true }; }); this.scheduleAnimEnd(); }
 
   enter=()=>{ const w=this.deskW(); this.setState(s=>{ const P={...s.panels}; this.panelIds.forEach(id=>{ if(id!=='calc'&&id!=='notes') P[id]={...P[id], open:true}; }); return { onLanding:false, panels:this.packLayout(P, w), animating:true }; }, ()=>this.measure()); this.scheduleAnimEnd(); };
+  // Cursor-tracking "shine" — a soft spotlight follows the pointer across the text. Generic:
+  // works on any element via e.currentTarget, and saves/restores the original inline style so it
+  // also works on gradient text (logo, hero) without clobbering its base gradient.
+  shineMove=(e)=>{ const el=e.currentTarget; if(!el) return; if(el.__shineOrig==null) el.__shineOrig=el.style.cssText; const r=el.getBoundingClientRect(); const x=(e.clientX-r.left).toFixed(0), y=(e.clientY-r.top).toFixed(0); el.style.color='transparent'; el.style.backgroundImage='radial-gradient(circle at '+x+'px '+y+'px, #9fb184 0%, #6f8466 45%, #51663f 100%)'; el.style.webkitBackgroundClip='text'; el.style.backgroundClip='text'; };
+  shineReset=(e)=>{ const el=e.currentTarget; if(el&&el.__shineOrig!=null){ el.style.cssText=el.__shineOrig; el.__shineOrig=null; } };
+
+  // Gradient-text shine (logo + hero): a soft white highlight layered OVER the base green→purple
+  // gradient (so it blends rather than replaces), and fades out smoothly on leave instead of snapping.
+  _gradBase='linear-gradient(100deg,#6f8466,#847ea6 52%,#6f8499)';
+  _applyGShine(el, a){ el.style.color='transparent'; el.style.backgroundImage='radial-gradient(circle at '+el.__sx+'px '+el.__sy+'px, rgba(255,255,255,'+a+') 0%, rgba(255,255,255,0) 48%), '+this._gradBase; el.style.webkitBackgroundClip='text'; el.style.backgroundClip='text'; }
+  gshineMove=(e)=>{ const el=e.currentTarget; if(!el) return; if(el.__shineOrig==null) el.__shineOrig=el.style.cssText; if(el.__shineRAF){ cancelAnimationFrame(el.__shineRAF); el.__shineRAF=null; } const r=el.getBoundingClientRect(); el.__sx=(e.clientX-r.left).toFixed(0); el.__sy=(e.clientY-r.top).toFixed(0); this._applyGShine(el, 0.5); };
+  gshineReset=(e)=>{ const el=e.currentTarget; if(!el) return; if(el.__shineRAF) cancelAnimationFrame(el.__shineRAF); const dur=340, start=performance.now(), a0=0.5; const step=(t)=>{ const k=Math.min(1,(t-start)/dur); this._applyGShine(el, a0*(1-k)); if(k<1){ el.__shineRAF=requestAnimationFrame(step); } else { el.__shineRAF=null; if(el.__shineOrig!=null){ el.style.cssText=el.__shineOrig; el.__shineOrig=null; } } }; el.__shineRAF=requestAnimationFrame(step); };
+  // logo also clears the hint tooltip on leave
+  logoLeave=(e)=>{ this.gshineReset(e); this.clearHint(); };
   // Entering auto is passive — it just shows the goal inputs. The model does not
   // start until LAUNCH (startCycling). Backend stays idle (manual) until then.
   watchRace=()=>{ const w=this.deskW(); this.setState(s=>{ const keep=new Set(['swatch','world','narr','manual','actuators']); const P={...s.panels}; this.panelIds.forEach(id=>{ P[id]={...P[id], open:keep.has(id)}; }); return { onLanding:false, running:true, mode:'auto', panels:this.packLayout(P, w), animating:true }; }, ()=>this.measure()); this.scheduleAnimEnd(); };
@@ -651,7 +665,7 @@ return class Component extends DCLogic {
       landingBodies, landingRef:this.landingRef, onLandingMove:this.onLandingMove,
       sensorRgbTxt:'R '+s.rgb[0]+'  G '+s.rgb[1]+'  B '+s.rgb[2], sensorLux:String(s.lux),
       landingOpacity:s.onLanding?'1':'0', landingPE:s.onLanding?'auto':'none', landingTransform:s.onLanding?'scale(1)':'scale(1.05)',
-      consoleOpacity:s.onLanding?'0':'1', consolePE:s.onLanding?'none':'auto', enter:this.enter,
+      consoleOpacity:s.onLanding?'0':'1', consolePE:s.onLanding?'none':'auto', enter:this.enter, shineMove:this.shineMove, shineReset:this.shineReset, gshineMove:this.gshineMove, gshineReset:this.gshineReset, logoLeave:this.logoLeave,
       wcOpacity:String(this.props.watercolor??0.85), blobA:pal[0], blobB:pal[1], blobC:pal[2], blobD:pal[3],
       scrollRef:this.scrollRef, stageTransform:s.uiZoom===1?'none':'scale('+s.uiZoom+')', spacerW:(s.stageW*s.uiZoom).toFixed(0)+'px', spacerH:(contentHpx*s.uiZoom).toFixed(0)+'px', stageWpx:s.stageW.toFixed(0)+'px', stageHpx:contentHpx.toFixed(0)+'px',
       zoomTxt:Math.round(s.uiZoom*100)+'%', zoomIn:this.zoomIn, zoomOut:this.zoomOut, zoomReset:this.zoomReset, tidyDesk:this.tidyDesk,

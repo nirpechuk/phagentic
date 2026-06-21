@@ -14,17 +14,16 @@
       </sc-for>
     </div>
     <header style="position:relative; z-index:3; display:flex; align-items:center; justify-content:space-between; padding:30px 44px 30px 64px;">
-      <div style="font-family:'Instrument Serif',serif; font-style:italic; font-weight:400; font-size:30px; letter-spacing:.01em; background:linear-gradient(100deg,#6f8466,#847ea6 52%,#6f8499); -webkit-background-clip:text; background-clip:text; color:transparent;">Phagentic</div>
+      <div onMouseMove="{{ gshineMove }}" onMouseLeave="{{ gshineReset }}" style="display:inline-block; font-family:'Instrument Serif',serif; font-style:italic; font-weight:400; font-size:30px; letter-spacing:.01em; background:linear-gradient(100deg,#6f8466,#847ea6 52%,#6f8499); -webkit-background-clip:text; background-clip:text; color:transparent;">Phagentic</div>
       <div style="font-family:'JetBrains Mono',monospace; font-size:11.5px; letter-spacing:.16em; color:rgba(46,43,36,.5);">PHAGE&nbsp;FOUNDRY&nbsp;·&nbsp;2026</div>
     </header>
     <div style="position:absolute; inset:0; z-index:2; display:grid; grid-template-columns:1.05fr 1fr; align-items:center;">
       <div style="padding:0 44px 0 64px; max-width:660px;">
-        <div style="font-family:'JetBrains Mono',monospace; font-size:12.5px; letter-spacing:.2em; color:#6f7a5c;">A&nbsp;WORLD-MODEL&nbsp;CONTROLLER&nbsp;FOR&nbsp;OSCILLATING&nbsp;REACTIONS</div>
-        <h1 style="font-family:'Space Grotesk',sans-serif; font-weight:500; font-size:72px; line-height:1.06; letter-spacing:-.02em; margin:24px 0 0; color:#2e2b24;">
-          Every culture<br>has one<br><span style="display:inline-block; padding:.04em .1em .12em; margin-left:-.1em; font-family:'Instrument Serif',serif; font-style:italic; font-weight:400; font-size:84px; line-height:1; background:linear-gradient(100deg,#6f8466,#847ea6 52%,#6f8499); -webkit-background-clip:text; background-clip:text; color:transparent;">perfect moment.</span>
+        <h1 style="font-family:'Space Grotesk',sans-serif; font-weight:500; font-size:72px; line-height:1.06; letter-spacing:-.02em; margin:0; color:#2e2b24;">
+          The agentic<br>operating system for<br><span onMouseMove="{{ gshineMove }}" onMouseLeave="{{ gshineReset }}" style="display:inline-block; white-space:nowrap; padding:.04em .1em .12em; margin-left:-.1em; font-family:'Instrument Serif',serif; font-style:italic; font-weight:400; font-size:84px; line-height:1; background:linear-gradient(100deg,#6f8466,#847ea6 52%,#6f8499); -webkit-background-clip:text; background-clip:text; color:transparent;">outpacing evolution.</span>
         </h1>
         <div style="margin-top:44px;">
-          <button onClick="{{ enter }}" style="cursor:pointer; background:none; border:none; padding:5px 0; font-family:'JetBrains Mono',monospace; font-size:13px; font-weight:600; letter-spacing:.12em; color:#566e4b; border-bottom:2px solid #6f8466;" style-hover="border-bottom-color:#2e2b24;">ENTER THE CONSOLE →</button>
+          <button onClick="{{ enter }}" onMouseMove="{{ shineMove }}" onMouseLeave="{{ shineReset }}" style="cursor:pointer; display:inline-block; transform-origin:left center; background:none; border:none; padding:5px 0; font-family:'JetBrains Mono',monospace; font-size:13px; font-weight:600; letter-spacing:.12em; color:#566e4b; border-bottom:2px solid #6f8466; transition:transform .2s cubic-bezier(.2,.8,.3,1);" style-hover="transform:scale(1.03); border-bottom-color:#2e2b24;">ENTER THE CONSOLE →</button>
         </div>
       </div>
       <div style="position:relative; height:100%; perspective:1100px;"></div>
