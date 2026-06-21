@@ -29,10 +29,10 @@ return class Component extends DCLogic {
       {id:'cycles', name:'Cycles per run', expr:'N = (R·60) ÷ T', desc:'How many oscillations fit a run of a given length.', fields:[['Run length','R','min'],['Period','P','s']], fn:v=>v.P?(v.R*60)/v.P:0, unit:'cycles', dp:0},
       {id:'temp', name:'Temperature  °C ⇄ °F', expr:'°F = °C·9/5 + 32', desc:'Convert between Celsius and Fahrenheit — type in either box.', converter:true},
     ];
-    this.panelIds=['reactors','swatch','world','narr','manual','calc','ask','runs'];
-    this.labels={reactors:'VESSEL', swatch:'COLOUR LOG', world:'OSCILLATION', narr:'NARRATION', manual:'MANUAL CONSOLE', calc:'CALCULATOR', ask:'ASK PHAGE', runs:'RUNS'};
+    this.panelIds=['swatch','world','narr','manual','calc','ask','runs'];
+    this.labels={swatch:'COLOUR LOG', world:'OSCILLATION', narr:'NARRATION', manual:'MANUAL CONSOLE', calc:'CALCULATOR', ask:'ASK PHAGE', runs:'RUNS'};
     // starting size per panel (px, design space); user-resizable from the corner.
-    this._size={ reactors:[350,420], swatch:[350,460], world:[620,420], narr:[360,420], manual:[560,640], calc:[360,430], ask:[400,420], runs:[350,400] };
+    this._size={ swatch:[350,460], world:[620,420], narr:[360,420], manual:[560,640], calc:[360,430], ask:[400,420], runs:[350,400] };
     this.dragH={}; this.closeH={}; this.openH={}; this.resizeH={};
     this.panelIds.forEach(id=>{ this.dragH[id]=this.startDrag(id); this.closeH[id]=()=>this.closePanel(id); this.openH[id]=()=>this.openPanel(id); this.resizeH[id]=this.startResize(id); });
     this.knobCool=this.startKnob('stirrer',0,255); this.knobMoi=this.startKnob('glucoseDoseMs',50,2000); this.knobThr=this.startKnob('ampThreshold',5,95); this.knobLight=this.startKnob('light',0,255);
@@ -55,7 +55,7 @@ return class Component extends DCLogic {
       stirrerOut:150, glucoseActive:false, naohActive:false, glucosePulses:0, lastPulseT:null,
       hist:[],
       narr:[{txt:'System online. Awaiting first blue↔colorless swing.', kind:'info'}],
-      panels:{ reactors:mk(true,'reactors'), swatch:mk(true,'swatch'), world:mk(true,'world'), narr:mk(true,'narr'), manual:mk(true,'manual'), calc:mk(false,'calc'), ask:mk(true,'ask'), runs:mk(false,'runs') },
+      panels:{ swatch:mk(true,'swatch'), world:mk(true,'world'), narr:mk(true,'narr'), manual:mk(true,'manual'), calc:mk(false,'calc'), ask:mk(true,'ask'), runs:mk(false,'runs') },
       drag:null, resize:null, stageW:1304, stageH:740,
       calc:{display:'0', acc:null, op:null, fresh:true}, calcTab:'keys',
       eq:{ amp:{}, period:{}, freq:{}, blue:{}, stir:{}, kla:{}, dose:{}, cycles:{}, temp:{} }, eqSel:null,
