@@ -57,12 +57,12 @@
     <header style="display:flex; align-items:center; justify-content:space-between; padding:15px 30px; border-bottom:1px solid rgba(59,55,47,.16); background:linear-gradient(rgba(247,243,235,.55),rgba(244,238,228,.32)); -webkit-backdrop-filter:blur(9px); backdrop-filter:blur(9px);">
       <div style="display:flex; align-items:center; gap:15px;">
         <div onClick="{{ goHome }}" title="live sensor colour — back to home" style="cursor:pointer; width:26px; height:26px; border-radius:7px; background:{{ vesselColor }}; border:1px solid rgba(59,55,47,.28); box-shadow:inset 0 1px 3px rgba(255,255,255,.6); transition:background .12s linear;"></div>
-        <div onClick="{{ goHome }}" title="back to home" style="cursor:pointer; font-weight:600; letter-spacing:.34em; font-size:15px; color:#2e2b24;">PHAGENTIC</div>
-        <div style="font-family:'JetBrains Mono',monospace; font-size:13px; color:rgba(46,43,36,.55); letter-spacing:.05em; padding-left:15px; border-left:1px solid rgba(59,55,47,.2);">blue-bottle&nbsp;oscillation&nbsp;controller</div>
+        <div onClick="{{ goHome }}" onMouseEnter="{{ hHome }}" onMouseLeave="{{ clearHint }}" title="back to home" style="cursor:pointer; font-family:'Instrument Serif',serif; font-style:italic; font-weight:400; font-size:28px; line-height:1; background:linear-gradient(100deg,#6f8466,#847ea6 52%,#6f8499); -webkit-background-clip:text; background-clip:text; color:transparent;">Phagentic</div>
+        <div style="font-family:'JetBrains Mono',monospace; font-size:13px; color:rgba(46,43,36,.55); letter-spacing:.05em; padding-left:15px; border-left:1px solid rgba(59,55,47,.2);">phage&nbsp;therapy&nbsp;·&nbsp;curing&nbsp;antibiotic&nbsp;resistance</div>
       </div>
       <div style="display:flex; align-items:center; gap:20px;">
         <div style="display:flex; align-items:center; gap:9px; font-family:'JetBrains Mono',monospace; font-size:14px; color:rgba(46,43,36,.72);">
-          <span style="width:8px; height:8px; border-radius:50%; background:{{ statusDot }}; animation:pulse 2s ease-in-out infinite;"></span>{{ statusTxt }}&nbsp;·&nbsp;{{ runLabel2 }}&nbsp;·&nbsp;t&nbsp;{{ clockTxt }}&nbsp;·&nbsp;<span style="color:{{ sourceColor }};">{{ sourceTxt }}</span>
+          <span style="width:8px; height:8px; border-radius:50%; background:{{ statusDot }}; animation:pulse 2s ease-in-out infinite;"></span>{{ statusTxt }}&nbsp;·&nbsp;<span style="width:9px; height:9px; border-radius:50%; background:{{ runColorVal }}; display:inline-block; vertical-align:middle; box-shadow:0 0 7px {{ runColorVal }};"></span>&nbsp;<b style="font-weight:700; color:#2e2b24;">{{ runNameTxt }}</b>&nbsp;·&nbsp;t&nbsp;{{ clockTxt }}&nbsp;·&nbsp;<span style="color:{{ sourceColor }};">{{ sourceTxt }}</span>
         </div>
         <div style="display:flex; align-items:center; gap:5px; font-family:'JetBrains Mono',monospace;">
           <span style="font-size:11.5px; letter-spacing:.1em; color:rgba(46,43,36,.5); margin-right:3px;">TEXT</span>
@@ -70,21 +70,25 @@
           <button onClick="{{ zoomReset }}" style="cursor:pointer; background:none; border:1px solid rgba(59,55,47,.25); border-radius:7px; padding:0 9px; height:27px; font:inherit; font-size:13px; color:rgba(46,43,36,.72);" style-hover="background:rgba(59,55,47,.08);">{{ zoomTxt }}</button>
           <button onClick="{{ zoomIn }}" title="Larger" style="cursor:pointer; background:none; border:1px solid rgba(59,55,47,.25); border-radius:7px; width:29px; height:27px; font:inherit; font-size:15px; color:#2e2b24;" style-hover="background:rgba(59,55,47,.08);">A+</button>
         </div>
-        <button onClick="{{ bleConnect }}" title="Connect to the bioreactor over Bluetooth" style="cursor:pointer; background:none; border:none; border-bottom:1.5px solid rgba(111,132,102,.5); padding:4px 1px; font-family:'JetBrains Mono',monospace; font-size:14px; letter-spacing:.05em; color:#566e4b;" style-hover="border-bottom-color:#2e2b24; color:#2e2b24;">{{ bleLabel }}</button>
-        <button onClick="{{ tidyDesk }}" style="cursor:pointer; background:none; border:none; border-bottom:1.5px solid rgba(59,55,47,.4); padding:4px 1px; font-family:'JetBrains Mono',monospace; font-size:14px; letter-spacing:.05em; color:rgba(46,43,36,.72);" style-hover="color:#2e2b24; border-bottom-color:#2e2b24;">✦ tidy desk</button>
+        <button onClick="{{ bleConnect }}" onMouseEnter="{{ hConnect }}" onMouseLeave="{{ clearHint }}" style="cursor:pointer; background:none; border:none; border-bottom:1.5px solid rgba(111,132,102,.5); padding:4px 1px; font-family:'JetBrains Mono',monospace; font-size:14px; letter-spacing:.05em; color:#566e4b;" style-hover="border-bottom-color:#2e2b24; color:#2e2b24;">{{ bleLabel }}</button>
+        <button onClick="{{ tidyDesk }}" onMouseEnter="{{ hTidy }}" onMouseLeave="{{ clearHint }}" style="cursor:pointer; background:none; border:none; border-bottom:1.5px solid rgba(59,55,47,.4); padding:4px 1px; font-family:'JetBrains Mono',monospace; font-size:14px; letter-spacing:.05em; color:rgba(46,43,36,.72);" style-hover="color:#2e2b24; border-bottom-color:#2e2b24;">✦ tidy desk</button>
         <div style="display:flex; align-items:center; gap:16px; font-family:'JetBrains Mono',monospace; font-size:14px; letter-spacing:.05em;">
-          <button onClick="{{ toggleRun }}" style="cursor:pointer; background:none; border:none; border-bottom:1.5px solid transparent; padding:4px 1px; font:inherit; color:rgba(46,43,36,.72);" style-hover="color:#2e2b24; border-bottom-color:rgba(59,55,47,.5);">{{ runLabel }}</button>
-          <button onClick="{{ remelt }}" style="cursor:pointer; background:none; border:none; border-bottom:1.5px solid transparent; padding:4px 1px; font:inherit; color:rgba(46,43,36,.72);" style-hover="color:#2e2b24; border-bottom-color:rgba(59,55,47,.5);">restart</button>
-          <button onClick="{{ bump }}" style="cursor:pointer; background:none; border:none; border-bottom:1.5px solid transparent; padding:4px 1px; font:inherit; color:#94762f;" style-hover="border-bottom-color:rgba(148,118,47,.6);">disturb</button>
+          <button onClick="{{ toggleRun }}" onMouseEnter="{{ hPause }}" onMouseLeave="{{ clearHint }}" style="cursor:pointer; background:none; border:none; border-bottom:1.5px solid transparent; padding:4px 1px; font:inherit; color:rgba(46,43,36,.72);" style-hover="color:#2e2b24; border-bottom-color:rgba(59,55,47,.5);">{{ runLabel }}</button>
+          <button onClick="{{ remelt }}" onMouseEnter="{{ hRestart }}" onMouseLeave="{{ clearHint }}" style="cursor:pointer; background:none; border:none; border-bottom:1.5px solid transparent; padding:4px 1px; font:inherit; color:rgba(46,43,36,.72);" style-hover="color:#2e2b24; border-bottom-color:rgba(59,55,47,.5);">restart</button>
+          <button onClick="{{ bump }}" onMouseEnter="{{ hDisturb }}" onMouseLeave="{{ clearHint }}" style="cursor:pointer; background:none; border:none; border-bottom:1.5px solid transparent; padding:4px 1px; font:inherit; color:#94762f;" style-hover="border-bottom-color:rgba(148,118,47,.6);">disturb</button>
           <span style="width:1px; height:16px; background:rgba(59,55,47,.22);"></span>
-          <button onClick="{{ manualFire }}" style="cursor:pointer; background:none; border:none; padding:4px 1px; font:inherit; font-weight:700; letter-spacing:.14em; color:#566e4b; border-bottom:2px solid #6f8466;" style-hover="border-bottom-color:#2e2b24;">⟢ PULSE</button>
+          <button onClick="{{ manualFire }}" onMouseEnter="{{ hPulse }}" onMouseLeave="{{ clearHint }}" style="cursor:pointer; background:none; border:none; padding:4px 1px; font:inherit; font-weight:700; letter-spacing:.14em; color:#566e4b; border-bottom:2px solid #6f8466;" style-hover="border-bottom-color:#2e2b24;">⟢ PULSE</button>
         </div>
-        <button onClick="{{ openSettings }}" title="Bluetooth & settings" style="cursor:pointer; margin-left:4px; background:linear-gradient(150deg, rgba(247,243,235,.85), rgba(225,219,207,.7)); -webkit-backdrop-filter:blur(8px); backdrop-filter:blur(8px); border:1px solid rgba(59,55,47,.3); border-radius:9px; padding:8px 14px; font-family:'JetBrains Mono',monospace; font-size:13.5px; letter-spacing:.06em; color:#3b372f; box-shadow:0 4px 12px -6px rgba(70,60,48,.4), inset 0 1px 0 rgba(255,255,255,.7);" style-hover="background:linear-gradient(150deg, rgba(247,243,235,.97), rgba(225,219,207,.85)); border-color:rgba(59,55,47,.46);">⚙ settings</button>
+        <button onClick="{{ openSettings }}" onMouseEnter="{{ hSettings }}" onMouseLeave="{{ clearHint }}" style="cursor:pointer; margin-left:4px; background:linear-gradient(150deg, rgba(247,243,235,.85), rgba(225,219,207,.7)); -webkit-backdrop-filter:blur(8px); backdrop-filter:blur(8px); border:1px solid rgba(59,55,47,.3); border-radius:9px; padding:8px 14px; font-family:'JetBrains Mono',monospace; font-size:13.5px; letter-spacing:.06em; color:#3b372f; box-shadow:0 4px 12px -6px rgba(70,60,48,.4), inset 0 1px 0 rgba(255,255,255,.7);" style-hover="background:linear-gradient(150deg, rgba(247,243,235,.97), rgba(225,219,207,.85)); border-color:rgba(59,55,47,.46);">⚙ settings</button>
       </div>
     </header>
 
+    <!-- glassy hover hint — appears directly under the hovered control -->
+    <div style="position:fixed; left:{{ hintLeft }}; top:{{ hintTop }}; transform:translateX(-50%); z-index:120; pointer-events:none; opacity:{{ hintOpacity }}; transition:opacity .14s ease; background:linear-gradient(150deg, rgba(247,243,235,.92), rgba(228,222,210,.8)); -webkit-backdrop-filter:blur(11px) saturate(1.2); backdrop-filter:blur(11px) saturate(1.2); border:1px solid rgba(255,255,255,.65); border-radius:10px; box-shadow:0 12px 28px -12px rgba(70,60,48,.5), inset 0 1px 0 rgba(255,255,255,.8); padding:8px 13px; font-family:'JetBrains Mono',monospace; font-size:12px; line-height:1.4; color:#3b372f; max-width:240px; text-align:center;">{{ hint }}</div>
+
     <div style="flex:1; min-height:0; position:relative;">
-    <div ref="{{ scrollRef }}" style="position:absolute; inset:0; overflow:auto;">
+    <div style="position:absolute; inset:0; pointer-events:none; z-index:0; box-shadow:inset 0 0 70px 2px {{ glowColor }}, inset 0 0 200px 44px {{ glowColor2 }}; animation:pulse 8s ease-in-out infinite; transition:box-shadow .6s ease;"></div>
+    <div ref="{{ scrollRef }}" style="position:absolute; inset:0; overflow:auto; z-index:1;">
     <div style="position:relative; width:{{ spacerW }}; height:{{ spacerH }};">
     <div style="position:absolute; left:0; top:0; width:{{ stageWpx }}; height:{{ stageHpx }}; transform:{{ stageTransform }}; transform-origin:0 0;">
 
@@ -303,26 +307,12 @@
             <div style="display:flex; justify-content:space-between; gap:8px; align-items:flex-start;">
               <div style="flex:1; display:flex; flex-direction:column; align-items:center; gap:6px;">
                 <span style="font-family:'JetBrains Mono',monospace; font-size:11px; color:rgba(46,43,36,.72); text-align:center; line-height:1.2;">{{ gluName }}<br><span style="opacity:.5; font-size:9px;">{{ gluPinTxt }}</span></span>
-                <div onMouseDown="{{ gluToggle }}" title="tap to toggle" style="position:relative; width:40px; height:80px; border-radius:11px; cursor:pointer; overflow:hidden; background:linear-gradient(180deg, rgba(255,255,255,.42), rgba(224,216,200,.22)); border:1px solid rgba(59,55,47,.22); box-shadow:inset 0 2px 5px rgba(255,255,255,.7);">
-                  <div style="position:absolute; left:0; right:0; bottom:0; height:{{ gluBarFill }}; background:linear-gradient(180deg,#7aa0d8,#5f7fb0); box-shadow:0 -2px 14px rgba(95,127,176,.55); transition:height .14s ease;"></div>
-                </div>
-                <span style="font-family:'JetBrains Mono',monospace; font-size:12px; font-weight:600; color:#2e2b24;">{{ gluStateTxt }}</span>
-                <div style="display:flex; font-family:'JetBrains Mono',monospace; font-size:11px; border:1px solid rgba(59,55,47,.2); border-radius:8px; overflow:hidden;">
-                  <button onMouseDown="{{ stopProp }}" onClick="{{ gluSetOff }}" style="cursor:pointer; border:none; padding:5px 9px; font:inherit; background:{{ gluOffBg }}; color:{{ gluOffColor }};">OFF</button>
-                  <button onMouseDown="{{ stopProp }}" onClick="{{ gluSetOn }}" style="cursor:pointer; border:none; padding:5px 9px; font:inherit; background:{{ gluOnBg }}; color:{{ gluOnColor }};">ON</button>
-                </div>
+                <button onMouseDown="{{ stopProp }}" onClick="{{ gluToggle }}" title="tap to turn the pump on / off" style="cursor:pointer; width:100%; max-width:100px; height:96px; border-radius:13px; border:1px solid rgba(59,55,47,.22); background:{{ gluBtnBg }}; color:{{ gluBtnColor }}; box-shadow:{{ gluBtnGlow }}; font-family:'JetBrains Mono',monospace; font-size:16px; font-weight:700; letter-spacing:.1em; transition:background .15s, box-shadow .15s;">{{ gluStateTxt }}</button>
                 <button onMouseDown="{{ stopProp }}" onClick="{{ pulseGlucose }}" style="cursor:pointer; border:1px solid rgba(95,127,176,.4); border-radius:8px; padding:4px 12px; font-family:'JetBrains Mono',monospace; font-size:11px; color:#4a6cd0; background:rgba(95,127,176,.12);" style-hover="background:rgba(95,127,176,.22);">pulse</button>
               </div>
               <div style="flex:1; display:flex; flex-direction:column; align-items:center; gap:6px;">
                 <span style="font-family:'JetBrains Mono',monospace; font-size:11px; color:rgba(46,43,36,.72); text-align:center; line-height:1.2;">{{ naohName }}<br><span style="opacity:.5; font-size:9px;">{{ naohPinTxt }}</span></span>
-                <div onMouseDown="{{ naohToggle }}" title="tap to toggle" style="position:relative; width:40px; height:80px; border-radius:11px; cursor:pointer; overflow:hidden; background:linear-gradient(180deg, rgba(255,255,255,.42), rgba(224,216,200,.22)); border:1px solid rgba(59,55,47,.22); box-shadow:inset 0 2px 5px rgba(255,255,255,.7);">
-                  <div style="position:absolute; left:0; right:0; bottom:0; height:{{ naohBarFill }}; background:linear-gradient(180deg,#c8a24e,#94762f); box-shadow:0 -2px 14px rgba(148,118,47,.5); transition:height .14s ease;"></div>
-                </div>
-                <span style="font-family:'JetBrains Mono',monospace; font-size:12px; font-weight:600; color:#2e2b24;">{{ naohStateTxt }}</span>
-                <div style="display:flex; font-family:'JetBrains Mono',monospace; font-size:11px; border:1px solid rgba(59,55,47,.2); border-radius:8px; overflow:hidden;">
-                  <button onMouseDown="{{ stopProp }}" onClick="{{ naohSetOff }}" style="cursor:pointer; border:none; padding:5px 9px; font:inherit; background:{{ naohOffBg }}; color:{{ naohOffColor }};">OFF</button>
-                  <button onMouseDown="{{ stopProp }}" onClick="{{ naohSetOn }}" style="cursor:pointer; border:none; padding:5px 9px; font:inherit; background:{{ naohOnBg }}; color:{{ naohOnColor }};">ON</button>
-                </div>
+                <button onMouseDown="{{ stopProp }}" onClick="{{ naohToggle }}" title="tap to turn the pump on / off" style="cursor:pointer; width:100%; max-width:100px; height:96px; border-radius:13px; border:1px solid rgba(59,55,47,.22); background:{{ naohBtnBg }}; color:{{ naohBtnColor }}; box-shadow:{{ naohBtnGlow }}; font-family:'JetBrains Mono',monospace; font-size:16px; font-weight:700; letter-spacing:.1em; transition:background .15s, box-shadow .15s;">{{ naohStateTxt }}</button>
                 <button onMouseDown="{{ stopProp }}" onClick="{{ pulseNaoh }}" style="cursor:pointer; border:1px solid rgba(148,118,47,.4); border-radius:8px; padding:4px 12px; font-family:'JetBrains Mono',monospace; font-size:11px; color:#94762f; background:rgba(148,118,47,.1);" style-hover="background:rgba(148,118,47,.2);">pulse</button>
               </div>
               <div style="flex:1; display:flex; flex-direction:column; align-items:center; gap:6px;">
@@ -491,18 +481,33 @@
         <div onMouseDown="{{ panels.runs.resize }}" title="drag to resize" style="position:absolute; right:2px; bottom:2px; width:18px; height:18px; cursor:nwse-resize; z-index:6; border-right:2px solid rgba(59,55,47,.3); border-bottom:2px solid rgba(59,55,47,.3); border-bottom-right-radius:8px;"></div>
         <div onMouseDown="{{ dragH.runs }}" style="cursor:grab; padding:13px 18px 9px; display:flex; align-items:center; justify-content:space-between;">
           <span style="font-family:'JetBrains Mono',monospace; font-size:12.5px; letter-spacing:.18em; color:rgba(46,43,36,.55);">RUNS</span>
-          <div style="display:flex; align-items:center; gap:10px;">
-            <button onMouseDown="{{ stopProp }}" onClick="{{ addRun }}" style="cursor:pointer; background:rgba(111,132,102,.14); border:1px solid rgba(111,132,102,.3); border-radius:7px; padding:4px 10px; font-family:'JetBrains Mono',monospace; font-size:13px; color:#566e4b;" style-hover="background:rgba(111,132,102,.24);">＋ add run</button>
-            <button onMouseDown="{{ stopProp }}" onClick="{{ closeH.runs }}" style="cursor:pointer; background:none; border:none; color:rgba(46,43,36,.4); font-size:15px; line-height:1; padding:2px 4px;" style-hover="color:#2e2b24;">×</button>
-          </div>
+          <button onMouseDown="{{ stopProp }}" onClick="{{ closeH.runs }}" style="cursor:pointer; background:none; border:none; color:rgba(46,43,36,.4); font-size:15px; line-height:1; padding:2px 4px;" style-hover="color:#2e2b24;">×</button>
         </div>
-        <div style="flex:1; min-height:0; overflow-y:auto; padding:6px 16px 14px; display:flex; flex-direction:column; gap:8px;">
+        <div style="flex:1; min-height:0; overflow-y:auto; padding:6px 16px 14px; display:flex; flex-direction:column; gap:9px;">
+          <!-- current run editor -->
+          <div style="display:flex; align-items:center; gap:9px; padding:9px 10px; border-radius:12px; background:{{ glowColor2 }}; border:1px solid rgba(59,55,47,.12);">
+            <button onMouseDown="{{ stopProp }}" onClick="{{ openColor }}" title="choose run colour" style="cursor:pointer; flex:none; width:26px; height:26px; border-radius:50%; border:1px solid rgba(0,0,0,.15); background:{{ runColorVal }}; box-shadow:0 0 8px {{ runColorVal }}, inset 0 1px 2px rgba(255,255,255,.5);"></button>
+            <input value="{{ runNameTxt }}" onMouseDown="{{ stopProp }}" onInput="{{ setRunName }}" placeholder="Run name" style="flex:1; min-width:0; background:rgba(255,255,255,.5); border:1px solid rgba(59,55,47,.2); border-radius:8px; padding:7px 9px; font-family:'JetBrains Mono',monospace; font-size:13px; font-weight:600; color:#2e2b24; outline:none;" />
+            <button onMouseDown="{{ stopProp }}" onClick="{{ addRun }}" title="log this run and start a new one" style="cursor:pointer; background:#6f8466; border:none; border-radius:8px; padding:7px 11px; font-family:'JetBrains Mono',monospace; font-size:12.5px; font-weight:600; color:#fbf8f2;" style-hover="background:#566e4b;">＋ new</button>
+          </div>
+          <!-- colour spectrum (muted to match the site) -->
+          <sc-if value="{{ colorOpen }}" hint-placeholder-val="{{ false }}">
+          <div style="display:flex; flex-wrap:wrap; gap:6px; padding:9px; border-radius:11px; background:rgba(255,255,255,.4); border:1px solid rgba(59,55,47,.12);">
+            <sc-for list="{{ colorSwatches }}" as="sw" hint-placeholder-count="12">
+              <button onMouseDown="{{ stopProp }}" onClick="{{ sw.pick }}" style="cursor:pointer; width:22px; height:22px; border-radius:6px; border:1px solid rgba(0,0,0,.12); background:{{ sw.hex }};" style-hover="transform:scale(1.15);"></button>
+            </sc-for>
+          </div>
+          </sc-if>
+          <div style="font-family:'JetBrains Mono',monospace; font-size:11px; letter-spacing:.12em; color:rgba(46,43,36,.45); margin-top:2px;">LOGGED RUNS</div>
+          <sc-if value="{{ runsEmpty }}" hint-placeholder-val="{{ true }}">
+          <div style="font-family:'JetBrains Mono',monospace; font-size:12px; color:rgba(46,43,36,.4); padding:4px 2px;">No runs logged yet — hit ＋ new.</div>
+          </sc-if>
           <sc-for list="{{ runsList }}" as="r" hint-placeholder-count="4">
-            <div style="display:flex; align-items:center; gap:11px; padding:9px 11px; border-radius:11px; background:{{ r.rowBg }}; border:1px solid rgba(59,55,47,.1);">
-              <button onMouseDown="{{ stopProp }}" onClick="{{ r.recolor }}" title="recolor" style="cursor:pointer; flex:none; width:16px; height:16px; border-radius:5px; border:1px solid rgba(0,0,0,.12); background:{{ r.color }};"></button>
+            <div style="display:flex; align-items:center; gap:11px; padding:9px 11px; border-radius:11px; background:rgba(255,255,255,.3); border:1px solid rgba(59,55,47,.1);">
+              <span style="flex:none; width:14px; height:14px; border-radius:50%; border:1px solid rgba(0,0,0,.12); background:{{ r.color }};"></span>
               <span style="flex:1; font-family:'JetBrains Mono',monospace; font-size:13px; color:#2e2b24;">{{ r.label }}</span>
-              <span style="font-family:'JetBrains Mono',monospace; font-size:13.5px; color:{{ r.yieldColor }};">{{ r.yieldTxt }}</span>
-              <span style="width:7px; height:7px; border-radius:50%; background:{{ r.statusDot }};"></span>
+              <span style="font-family:'JetBrains Mono',monospace; font-size:12.5px; color:#94762f;">{{ r.sub }}</span>
+              <button onMouseDown="{{ stopProp }}" onClick="{{ r.del }}" title="delete run" style="cursor:pointer; flex:none; background:none; border:none; color:rgba(46,43,36,.4); font-size:15px; line-height:1; padding:0 2px;" style-hover="color:#9c4a3c;">×</button>
             </div>
           </sc-for>
         </div>
