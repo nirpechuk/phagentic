@@ -7,6 +7,9 @@ return class Component extends DCLogic {
     this._chatLen=0;
     this.phage=this.buildPhage(92);
     this.runPalette=['#6f8466','#847ea6','#94762f','#6f8499','#b06a45','#7f9a72'];
+    // A muted "spectrum" in the same earthy/glassy vibe as the run palette — low
+    // saturation, mid lightness — so any picked colour fits the site.
+    this.huePalette=(()=>{ const a=[]; for(let h=0; h<360; h+=24) a.push(this.hslToHex(h, 0.34, 0.55)); return a; })();
     const calcLayout=[['√','fn'],['x²','fn'],['1/x','fn'],['÷','op'],['7','n'],['8','n'],['9','n'],['×','op'],['4','n'],['5','n'],['6','n'],['−','op'],['1','n'],['2','n'],['3','n'],['+','op'],['0','n'],['.','n'],['±','fn'],['=','eq']];
     this.calcKeys=calcLayout.map(([l,type])=>{
       const bg=type==='eq'?'#6f8466':type==='op'?'rgba(148,118,47,.12)':type==='fn'?'rgba(59,55,47,.06)':'rgba(255,255,255,.36)';
@@ -29,7 +32,7 @@ return class Component extends DCLogic {
     this.panelIds=['reactors','swatch','world','narr','manual','calc','ask','runs'];
     this.labels={reactors:'VESSEL', swatch:'COLOUR LOG', world:'OSCILLATION', narr:'NARRATION', manual:'MANUAL CONSOLE', calc:'CALCULATOR', ask:'ASK PHAGE', runs:'RUNS'};
     // starting size per panel (px, design space); user-resizable from the corner.
-    this._size={ reactors:[350,420], swatch:[350,460], world:[620,420], narr:[360,420], manual:[560,640], calc:[420,480], ask:[400,420], runs:[350,390] };
+    this._size={ reactors:[350,420], swatch:[350,460], world:[620,420], narr:[360,420], manual:[560,640], calc:[360,430], ask:[400,420], runs:[350,400] };
     this.dragH={}; this.closeH={}; this.openH={}; this.resizeH={};
     this.panelIds.forEach(id=>{ this.dragH[id]=this.startDrag(id); this.closeH[id]=()=>this.closePanel(id); this.openH[id]=()=>this.openPanel(id); this.resizeH[id]=this.startResize(id); });
     this.knobCool=this.startKnob('stirrer',0,255); this.knobMoi=this.startKnob('glucoseDoseMs',50,2000); this.knobThr=this.startKnob('ampThreshold',5,95); this.knobLight=this.startKnob('light',0,255);
@@ -46,12 +49,13 @@ return class Component extends DCLogic {
       glucoseOn:false, naohOn:false,
       settingsOpen:false, bleName:'Bioreactor', bleStatus:'', bleKnown:0,
       // measured / derived (flushed from the ingest loop ~10Hz)
+      runName:'Run 01', runColor:'#6f8466', colorOpen:false, hint:'', hintX:0, hintY:0,
       t:0, runIndex:1, blue:0.5, rgb:[228,226,214], lux:0,
       amp:0, period:0, halfPeriod:0, phase:'colorless', cycles:0, stallRisk:0,
       stirrerOut:150, glucoseActive:false, naohActive:false, glucosePulses:0, lastPulseT:null,
       hist:[],
       narr:[{txt:'System online. Awaiting first blue↔colorless swing.', kind:'info'}],
-      panels:{ reactors:mk(true,'reactors'), swatch:mk(true,'swatch'), world:mk(true,'world'), narr:mk(true,'narr'), manual:mk(true,'manual'), calc:mk(true,'calc'), ask:mk(true,'ask'), runs:mk(false,'runs') },
+      panels:{ reactors:mk(true,'reactors'), swatch:mk(true,'swatch'), world:mk(true,'world'), narr:mk(true,'narr'), manual:mk(true,'manual'), calc:mk(false,'calc'), ask:mk(true,'ask'), runs:mk(false,'runs') },
       drag:null, resize:null, stageW:1304, stageH:740,
       calc:{display:'0', acc:null, op:null, fresh:true}, calcTab:'keys',
       eq:{ amp:{}, period:{}, freq:{}, blue:{}, stir:{}, kla:{}, dose:{}, cycles:{}, temp:{} }, eqSel:null,
@@ -146,6 +150,8 @@ return class Component extends DCLogic {
   setBleName=(e)=>this.setState({bleName:e.target.value});
 
   // ---- signal helpers --------------------------------------------------------
+  hslToHex(h,s,l){ const a=s*Math.min(l,1-l); const f=n=>{ const k=(n+h/30)%12; const c=l-a*Math.max(-1,Math.min(k-3,9-k,1)); return Math.round(c*255).toString(16).padStart(2,'0'); }; return '#'+f(0)+f(8)+f(4); }
+  hexToRgba(hex,al){ const h=(hex||'#6f8466').replace('#',''); const n=parseInt(h.length===3?h.replace(/(.)/g,'$1$1'):h,16); return 'rgba('+((n>>16)&255)+','+((n>>8)&255)+','+(n&255)+','+al+')'; }
   blueFromRgb(r,g,b,c){ return Math.max(0,Math.min(1,(b-r)/200)); }   // (b−r): ~0 colorless, large when blue
   rgbForBlue(blue){ const pale=[228,226,214], deep=[38,92,200], tt=Math.max(0,Math.min(1,blue)); return [Math.round(pale[0]+(deep[0]-pale[0])*tt),Math.round(pale[1]+(deep[1]-pale[1])*tt),Math.round(pale[2]+(deep[2]-pale[2])*tt)]; }
   pushNarr(txt,kind){ this._narr.push({txt,kind}); if(this._narr.length>60) this._narr=this._narr.slice(-60); }
@@ -232,11 +238,19 @@ return class Component extends DCLogic {
   }
   runColor(n){ return this.runPalette[(n-1)%this.runPalette.length]; }
   resetRun(now,log,note){
-    if(log){ this._runs.push({n:this.state.runIndex, cycles:this._cycles, color:this.runColor(this.state.runIndex)}); this._runs=this._runs.slice(-14); }
+    if(log){ this._runs.push({n:this.state.runIndex, name:this.state.runName, cycles:this._cycles, color:this.state.runColor}); this._runs=this._runs.slice(-30); }
     this.resetProc(now);
-    this.setState(s=>({ runIndex:log?s.runIndex+1:s.runIndex }));
+    this.setState(s=>{ const n=log?s.runIndex+1:s.runIndex; return { runIndex:n, runName:log?('Run '+String(n).padStart(2,'0')):s.runName }; });
     if(note) this.pushNarr(note,'info');
   }
+  setRunName=(e)=>this.setState({ runName:e.target.value });
+  openColor=()=>this.setState(s=>({ colorOpen:!s.colorOpen }));
+  pickRunColor=(hex)=>this.setState({ runColor:hex, colorOpen:false });
+  deleteRun(i){ if(i>=0&&i<this._runs.length){ this._runs.splice(i,1); this.flush(); } }
+  // glassy hover hints for the header buttons
+  // Show the hint directly under the hovered control (captures its position).
+  setHint=(t)=>(e)=>{ const el=e&&e.currentTarget, r=el&&el.getBoundingClientRect?el.getBoundingClientRect():null; this.setState({ hint:t, hintX:r?(r.left+r.width/2):0, hintY:r?(r.bottom+8):0 }); };
+  clearHint=()=>this.setState({ hint:'' });
   // Copy fast-changing instance fields into React state (~10Hz) so the sensor rate
   // is decoupled from render cost.
   flush(){
@@ -420,7 +434,7 @@ return class Component extends DCLogic {
   closePanel(id){ this.setState(s=>{ const P={...s.panels}; P[id]={...P[id], open:false}; return { panels:P }; }); }
   openPanel(id){ const w=this.deskW(); this.setState(s=>{ const P={...s.panels}; P[id]={...P[id], open:true}; return { panels:this.packLayout(P, w), animating:true }; }); this.scheduleAnimEnd(); }
 
-  enter=()=>{ const w=this.deskW(); this.setState(s=>{ const P={...s.panels}; this.panelIds.forEach(id=>{ if(id!=='runs') P[id]={...P[id], open:true}; }); return { onLanding:false, panels:this.packLayout(P, w), animating:true }; }, ()=>this.measure()); this.scheduleAnimEnd(); };
+  enter=()=>{ const w=this.deskW(); this.setState(s=>{ const P={...s.panels}; this.panelIds.forEach(id=>{ if(id!=='calc'&&id!=='runs') P[id]={...P[id], open:true}; }); return { onLanding:false, panels:this.packLayout(P, w), animating:true }; }, ()=>this.measure()); this.scheduleAnimEnd(); };
   watchRace=()=>{ const w=this.deskW(); this.setState(s=>{ const keep=new Set(['reactors','swatch','world','narr']); const P={...s.panels}; this.panelIds.forEach(id=>{ P[id]={...P[id], open:keep.has(id)}; }); return { onLanding:false, running:true, mode:'auto', panels:this.packLayout(P, w), animating:true }; }, ()=>this.measure()); this.scheduleAnimEnd(); };
   toggleRun=()=>this.setState(s=>({ running:!s.running }));
   setAuto=()=>this.setState({ mode:'auto' });
@@ -646,7 +660,8 @@ return class Component extends DCLogic {
     // supplies the 3D feel; we deliberately don't add a mouse-driven tilt (its
     // extreme rotateX near the top edge re-rasterized the layer and flickered).
     const landingBodies=s.bodies.map(o=>({ id:o.id, tf:`translate3d(${o.x.toFixed(1)}px,${o.y.toFixed(1)}px,0) scale(${o.scale})`, spinS:o.spin+'s', op:(o.kind==='full'?1:0.55).toFixed(2) }));
-    const runsList=[{ label:'RUN '+pad(s.runIndex), color:'#6f8466', yieldTxt:s.running?'live':'paused', yieldColor:'#566e4b', statusDot:'#6f8466', rowBg:'rgba(111,132,102,.12)', recolor:()=>{} }].concat(s.runs.slice().reverse().map((r)=>{ const realIdx=s.runs.indexOf(r); return { label:'RUN '+pad(r.n), color:r.color, yieldTxt:r.cycles+' cyc', yieldColor:'#94762f', statusDot:'rgba(46,43,36,.3)', rowBg:'rgba(255,255,255,.3)', recolor:()=>this.recolorRun(realIdx) }; }));
+    const runsList=s.runs.slice().reverse().map((r)=>{ const realIdx=s.runs.indexOf(r); return { label:(r.name||('Run '+pad(r.n))), color:r.color, sub:r.cycles+' cyc', del:()=>this.deleteRun(realIdx) }; });
+    const runsEmpty=s.runs.length===0;
     return {
       watchRace:this.watchRace, goHome:this.goHome,
       phageFaces:this.phage.faces, phageLines:this.phage.lines, phageFibers:this.phage.fibers, phageDots:this.phage.dots, bpT:this.phage.bpT, bpRingW:this.phage.rS.toFixed(1)+'px',
@@ -690,7 +705,9 @@ return class Component extends DCLogic {
       gluOnBg:s.glucoseOn?'#5f7fb0':'transparent', gluOnColor:s.glucoseOn?'#fff':'rgba(46,43,36,.55)', gluOffBg:s.glucoseOn?'transparent':'rgba(59,55,47,.14)', gluOffColor:s.glucoseOn?'rgba(46,43,36,.55)':'#2e2b24', gluDot:s.glucoseActive?'#5f7fb0':'rgba(46,43,36,.2)',
       naohOnBg:s.naohOn?'#94762f':'transparent', naohOnColor:s.naohOn?'#fff':'rgba(46,43,36,.55)', naohOffBg:s.naohOn?'transparent':'rgba(59,55,47,.14)', naohOffColor:s.naohOn?'rgba(46,43,36,.55)':'#2e2b24', naohDot:s.naohActive?'#94762f':'rgba(46,43,36,.2)',
       stirSetOn:this.stirSetOn, stirSetOff:this.stirSetOff, lightSetOn:this.lightSetOn, lightSetOff:this.lightSetOff,
-      gluToggle:this.gluToggle, naohToggle:this.naohToggle, gluBarFill:s.glucoseOn?'100%':'0%', naohBarFill:s.naohOn?'100%':'0%', gluStateTxt:s.glucoseOn?'ON':'OFF', naohStateTxt:s.naohOn?'ON':'OFF',
+      gluToggle:this.gluToggle, naohToggle:this.naohToggle, gluStateTxt:s.glucoseOn?'ON':'OFF', naohStateTxt:s.naohOn?'ON':'OFF',
+      gluBtnBg:s.glucoseOn?'linear-gradient(180deg,#7aa0d8,#5f7fb0)':'linear-gradient(180deg, rgba(255,255,255,.5), rgba(224,216,200,.28))', gluBtnColor:s.glucoseOn?'#fff':'rgba(46,43,36,.7)', gluBtnGlow:s.glucoseOn?'0 0 20px rgba(95,127,176,.6), inset 0 2px 6px rgba(255,255,255,.45)':'inset 0 2px 6px rgba(255,255,255,.7)',
+      naohBtnBg:s.naohOn?'linear-gradient(180deg,#c8a24e,#94762f)':'linear-gradient(180deg, rgba(255,255,255,.5), rgba(224,216,200,.28))', naohBtnColor:s.naohOn?'#fff':'rgba(46,43,36,.7)', naohBtnGlow:s.naohOn?'0 0 20px rgba(148,118,47,.55), inset 0 2px 6px rgba(255,255,255,.45)':'inset 0 2px 6px rgba(255,255,255,.7)',
       stirOnBg:s.stirrer>0?'#5f7fb0':'transparent', stirOnColor:s.stirrer>0?'#fff':'rgba(46,43,36,.55)', stirOffBg:s.stirrer>0?'transparent':'rgba(59,55,47,.14)', stirOffColor:s.stirrer>0?'rgba(46,43,36,.55)':'#2e2b24',
       lightOnBg:s.light>0?'#b9923a':'transparent', lightOnColor:s.light>0?'#fff':'rgba(46,43,36,.55)', lightOffBg:s.light>0?'transparent':'rgba(59,55,47,.14)', lightOffColor:s.light>0?'rgba(46,43,36,.55)':'#2e2b24',
       stirName:this._names.stirrer, gluName:this._names.glucose, naohName:this._names.naoh, lightName:this._names.light,
@@ -706,7 +723,12 @@ return class Component extends DCLogic {
       calcDisplay:s.calc.display, calcKeys:this.calcKeys, calcKeysMode:s.calcTab==='keys', calcFxMode:s.calcTab==='fx', calcKeysTab:this.calcKeysTab, calcFxTab:this.calcFxTab, calcClear:this.calcClear, calcBack:this.calcBack,
       calcKeysColor:s.calcTab==='keys'?'#2e2b24':'rgba(46,43,36,.4)', calcFxColor:s.calcTab==='fx'?'#2e2b24':'rgba(46,43,36,.4)',
       chatMsgs, chatInput:s.chatInput, setChatInput:this.setChatInput, chatKey:this.chatKey, sendChat:this.sendChat, chatRef:this.chatRef,
-      runsList, addRun:this.addRun,
+      runsList, runsEmpty, addRun:this.addRun,
+      runNameTxt:s.runName, runColorVal:s.runColor, setRunName:this.setRunName, openColor:this.openColor, colorOpen:s.colorOpen,
+      colorSwatches:this.runPalette.concat(this.huePalette).map(hex=>({ hex, pick:()=>this.pickRunColor(hex) })),
+      glowColor:this.hexToRgba(s.runColor,0.12), glowColor2:this.hexToRgba(s.runColor,0.04),
+      hint:s.hint, hintOpacity:s.hint?'1':'0', clearHint:this.clearHint, hintLeft:s.hintX.toFixed(0)+'px', hintTop:s.hintY.toFixed(0)+'px',
+      hConnect:this.setHint('Connect to the bioreactor over Bluetooth (Web Bluetooth)'), hTidy:this.setHint('Re-pack every panel neatly into the workspace'), hPause:this.setHint(s.running?'Pause the control loop':'Resume the control loop'), hRestart:this.setHint('Log this run and start a fresh one'), hDisturb:this.setHint('Inject a disturbance to test the controller'), hPulse:this.setHint('Manually pulse the glucose pump'), hSettings:this.setHint('Bluetooth & settings'), hHome:this.setHint('Back to the home page'),
     };
   }
 };
