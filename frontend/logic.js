@@ -160,8 +160,17 @@ return class Component extends DCLogic {
     // draw as a stray line shooting across the graph. Detect the clock going
     // backwards (a reset) and drop the stale history + path cache.
     const tNow=+(m.t||0).toFixed(2);
-    if(this._hist.length && tNow < this._hist[this._hist.length-1].t-0.5){ this._hist=[]; this._pc=null; }
-    if(this.state.running){ this._hist.push({t:tNow, blue:+(m.blue||0).toFixed(4), blueEst:+(this._blueEst||0).toFixed(4), mid:0.5}); if(this._hist.length>5000) this._hist.shift(); }
+    const lastT=this._hist.length?this._hist[this._hist.length-1].t:0;
+    let skipPush=false;
+    if(this._hist.length && tNow < lastT-0.5){
+      // Clock went backwards. A genuine run reset returns t to ~0 — wipe and
+      // rebuild from the new run. A lone out-of-order / glitch frame mid-run
+      // (t still well above 0) is NOT a reset: drop just that frame so it can't
+      // nuke the whole graph or draw a stray line shooting back across it.
+      if(tNow<=1.0){ this._hist=[]; this._pc=null; }
+      else skipPush=true;
+    }
+    if(this.state.running && !skipPush){ this._hist.push({t:tNow, blue:+(m.blue||0).toFixed(4), blueEst:+(this._blueEst||0).toFixed(4), mid:0.5}); if(this._hist.length>5000) this._hist.shift(); }
     if(this._cycles>=1) this.sayOnce('first','First full cycle complete — oscillation established.','win');
     if(this._amp>=0.6) this.sayOnce('strong','Strong swing — amplitude '+this._amp.toFixed(2)+'.','info');
     (m.narr_new||[]).forEach(n=>this.pushNarr(n.txt, n.kind));
@@ -582,7 +591,26 @@ return class Component extends DCLogic {
   // commit the target. amplitude → relay cycles blue up to the peak and back to
   // ~colourless (period emergent); heuristic/mpc → hue controllers driving to the
   // target blue. All three are GoalModel variants, so we send both params.
-  startCycling=()=>{ if(this._be){ const c=this.state.controller, model=c==='mpc'?'goal_blue_mpc':c==='heuristic'?'goal_blue':'amplitude_lock'; this._be.setModel(model); this._be.setMode('ml'); this._be.resetRun(); this._be.setModelParams({ target_amplitude:this.state.targetBlue, goal_blue:this.state.targetBlue }); } this._hist=[]; this._pc=null; this.setState({ mode:'auto', running:true, cycling:true }); this.pushNarr(this.state.controller==='amplitude'?('▶ Launched — cycling blue '+Math.round(this.state.targetBlue*100)+'% ⇄ colourless.'):('▶ Launched — driving to target hue ('+this.state.controller+').'), 'win'); };
+  startCycling=()=>{
+    // The actual launch: build/select the model, switch the backend to ml, reset
+    // the run clock, and push the goal params.
+    const launch=()=>{
+      if(this._be){ const c=this.state.controller, model=c==='mpc'?'goal_blue_mpc':c==='heuristic'?'goal_blue':'amplitude_lock'; this._be.setModel(model); this._be.setMode('ml'); this._be.resetRun(); this._be.setModelParams({ target_amplitude:this.state.targetBlue, goal_blue:this.state.targetBlue }); }
+      this._hist=[]; this._pc=null; this._launching=false; this.setState({ mode:'auto', running:true, cycling:true }); this.pushNarr(this.state.controller==='amplitude'?('▶ Launched — cycling blue '+Math.round(this.state.targetBlue*100)+'% ⇄ colourless.'):('▶ Launched — driving to target hue ('+this.state.controller+').'), 'win');
+    };
+    // Auto white-balance before the run starts so the model sees correctly
+    // calibrated blue from its very first tick — at launch the solution is in its
+    // colourless baseline, a sensible white reference. The model isn't driving yet
+    // (still manual), so sampling is undisturbed. Falls straight through if offline
+    // or recalibration is unavailable; launches anyway if calibration fails.
+    if(this._be && this._be.recalibrate){
+      if(this._launching) return;            // guard against double-launch while sampling
+      this._launching=true;
+      this.setState({ calibTxt:'calibrating…' });
+      this.pushNarr('Calibrating white balance before launch…','dim');
+      this._be.recalibrate().then(d=>{ const ok=d&&d.status==='ok'; this.setState({ calibTxt:ok?'calibrated':'calib failed' }); this.pushNarr(ok?('White balance set · R×'+d.wb[0].toFixed(2)+' G×'+d.wb[1].toFixed(2)+' B×'+d.wb[2].toFixed(2)):'White balance failed — launching anyway.', ok?'win':'warn'); launch(); }).catch(()=>{ this.setState({ calibTxt:'failed' }); launch(); });
+    } else { launch(); }
+  };
   // Switch the AUTO controller live: GoalModel accepts a `controller` param
   // ('amplitude' | 'heuristic' | 'mpc') and swaps its planner on the fly.
   setController=(c)=>{ if(c!=='amplitude'&&c!=='heuristic'&&c!=='mpc') return; if(this._be) this._be.setModelParams({controller:c}); this.setState({ controller:c, mode:'auto' }); this.pushNarr('Controller → '+(c==='mpc'?'MPC (grey-box ODE)':c==='heuristic'?'heuristic (phase scheduler)':'amplitude (relay + PID)')+'.', 'info'); };

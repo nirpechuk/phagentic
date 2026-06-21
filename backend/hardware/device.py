@@ -253,7 +253,13 @@ class DeviceWorker:
             self._last_applied.clear()        # re-assert every output on (re)connect
             self.detector.reset()             # avoid a giant period across the gap
             self.estimator.reset()
-            self._t0 = time.monotonic()
+            # Initialise the run clock on the first-ever connect only. A mid-run
+            # reconnect must NOT restart t — the timeline is "seconds since run
+            # start", and only RESET_RUN restarts it. Resetting t→0 here made every
+            # BLE blip look like a new run to the UI, which then wiped the whole
+            # blue-level graph history (stray-line / "buggy graph" symptom).
+            if self._t0 is None:
+                self._t0 = time.monotonic()
             self._connected = True
             self.store.update(ble="connected")
             self.store.push_narr("BLE connected — streaming.", "win")
