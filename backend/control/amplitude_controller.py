@@ -28,9 +28,14 @@ class AmplitudeController:
     def __init__(self):
         self.target_amplitude = 0.7    # peak blue level to rise to (0..1)
         self.low_threshold = 0.1       # 'colourless' level to fall to before rising again
-        self.reach_tol = 0.03          # flip the relay within this of the active setpoint
+        self.reach_tol = 0.01          # flip the relay within this of the active setpoint
                                        # (the PID asymptotes to target, so strict
-                                       #  equality would never trip the flip)
+                                       #  equality would never trip the flip). Kept small
+                                       #  on the rise so we commit to the goal, not bail short.
+        # Asymmetric drive: more O2 only pushes blue UP, so easing off near the target
+        # lets it stall short ("gets close then backs away"). Hold a strong floor for the
+        # whole rising stroke so we actually drive blue TO the goal before flipping.
+        self.rise_floor = 200          # min stirrer PWM while rising (0 disables)
         # PID on blue error (0..1) → stirrer PWM (0..255); blue swings are small so
         # the proportional gain is large. Ki removes the steady offset so the rise
         # actually reaches the target; Kd off by default (noisy on a colour signal).
@@ -43,6 +48,13 @@ class AmplitudeController:
         # rescue gates (shared semantics with the hue heuristic)
         self.amp_floor = 0.15
         self.naoh_stall_thresh = 0.8
+        # Falling-stroke stall rescue: blue can get stuck high and refuse to reduce
+        # to colourless (reductant exhausted). Glucose IS the reductant, so feed it
+        # to push the fall through. This is gated on *lack of progress*, NOT on
+        # cycle_event — a stall means cycles have stopped, so a per-cycle gate would
+        # never fire exactly when the rescue is needed.
+        self.stall_grace_s = 40.0      # no progress toward colourless this long ⇒ stalled
+        self.progress_delta = 0.02     # min blue drop that counts as "still falling"
         self.reset()
 
     def reset(self) -> None:
@@ -51,6 +63,8 @@ class AmplitudeController:
         self._last_err = 0.0
         self._last_t: float | None = None
         self._phase_t0: float | None = None
+        self._fall_best: float | None = None    # lowest blue seen this falling stroke
+        self._fall_best_t = 0.0                  # when it last made progress downward
 
     # ── params (merged flat into GoalModel.get_params) ────────────────────────
     def get_params(self) -> dict:
@@ -62,9 +76,12 @@ class AmplitudeController:
             "amp_ki": self.ki,
             "amp_kd": self.kd,
             "drive_low": self.drive_low,
+            "rise_floor": self.rise_floor,
             "max_half_s": self.max_half_s,
             "amp_floor": self.amp_floor,
             "naoh_stall_thresh": self.naoh_stall_thresh,
+            "stall_grace_s": self.stall_grace_s,
+            "progress_delta": self.progress_delta,
             "rising": self._rising,
         }
 
@@ -83,12 +100,18 @@ class AmplitudeController:
             self.kd = max(0.0, float(p["amp_kd"]))
         if "drive_low" in p:
             self.drive_low = int(max(0, min(255, int(p["drive_low"]))))
+        if "rise_floor" in p:
+            self.rise_floor = int(max(0, min(255, int(p["rise_floor"]))))
         if "max_half_s" in p:
             self.max_half_s = max(5.0, min(600.0, float(p["max_half_s"])))
         if "amp_floor" in p:
             self.amp_floor = clamp(float(p["amp_floor"]), 0.0, 0.9)
         if "naoh_stall_thresh" in p:
             self.naoh_stall_thresh = clamp(float(p["naoh_stall_thresh"]), 0.0, 1.0)
+        if "stall_grace_s" in p:
+            self.stall_grace_s = max(2.0, min(120.0, float(p["stall_grace_s"])))
+        if "progress_delta" in p:
+            self.progress_delta = clamp(float(p["progress_delta"]), 0.0, 0.5)
         # keep thresholds sane relative to each other
         if self.low_threshold >= self.target_amplitude:
             self.low_threshold = max(0.0, self.target_amplitude - 0.05)
@@ -113,13 +136,24 @@ class AmplitudeController:
             self._last_err = err
             raw = self.kp * err + self._i + deriv
             out = clamp(raw, 0.0, 255.0)
-            if raw != out:                       # back-calculation anti-windup
+            if raw != out:                       # back-calculation anti-windup (true saturation)
                 self._i = clamp(self._i - (raw - out), -self.i_clamp, self.i_clamp)
+            out = max(out, self.rise_floor)      # stay aggressive: never coast below the floor on the way up
             if blue >= self.target_amplitude - self.reach_tol or timed_out:
                 self._enter_falling(c.t)
             return ControlDecision(round(out), glucose, naoh)
 
-        # falling: passive decay toward colourless
+        # falling: passive decay toward colourless. Watch for a stall — blue stuck
+        # high, not reducing on its own — and feed glucose (the reductant) to push
+        # the fall through. Tracked by downward progress, so a genuinely slow-but-
+        # moving fall is left alone while a truly stuck one is rescued.
+        if self._fall_best is None:
+            self._fall_best, self._fall_best_t = blue, c.t
+        if blue < self._fall_best - self.progress_delta:
+            self._fall_best, self._fall_best_t = blue, c.t
+        above_floor = blue > self.low_threshold + self.reach_tol
+        if above_floor and (c.t - self._fall_best_t) >= self.stall_grace_s:
+            glucose = True                       # cooldown-gated upstream in GoalModel
         if blue <= self.low_threshold + self.reach_tol or timed_out:
             self._enter_rising(c.t)
         return ControlDecision(self.drive_low, glucose, naoh)
@@ -129,6 +163,7 @@ class AmplitudeController:
         self._phase_t0 = t
         self._i = 0.0
         self._last_err = 0.0
+        self._fall_best = None                   # re-arm the stall watchdog for this stroke
 
     def _enter_rising(self, t: float) -> None:
         self._rising = True

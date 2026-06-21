@@ -20,12 +20,18 @@ from backend.analysis.signal import clamp
 # mixer level 0..3 → normalized stirring intensity
 STIR_LEVEL = {0: 0.0, 1: 0.34, 2: 0.67, 3: 1.0}
 
+# Hand-set to the *measured* timescales of this reactor (grounded in runs/, not
+# textbook guesses): under full stir blue rises 0→~0.67 in ~12 s; stir off it
+# fades to ~0.03 (clear) in ~35 s — i.e. the fall is ~3× slower than the rise,
+# which is the whole point of the on/off harness. O2 is kept stir-limited
+# (k_aer < k_cons) so mixer level is a real control lever: steady blue is
+# ~0.03 / 0.61 / 0.68 / 0.69 at mixer off/low/mid/high. The fitter refines these.
 DEFAULT_PARAMS = {
-    "k_ox": 0.9, "k_red": 0.7, "k_aer": 0.5, "k_cons": 0.6, "O_sat": 1.0,
-    "k_gc": 0.02, "k_pd": 0.01, "dose_g": 0.6, "dose_n": 0.5,
-    "blue_gain": 0.9, "blue_offset": 0.05, "noise_sd": 0.02,
+    "k_ox": 0.6, "k_red": 0.11, "k_aer": 0.35, "k_cons": 0.9, "O_sat": 1.0,
+    "k_gc": 0.008, "k_pd": 0.003, "dose_g": 0.6, "dose_n": 0.5,
+    "blue_gain": 0.78, "blue_offset": 0.03, "noise_sd": 0.02,
     # initial latent state (used by MPC observer + sim resets)
-    "M0": 0.5, "O0": 0.3, "G0": 1.0, "P0": 1.0,
+    "M0": 0.4, "O0": 0.3, "G0": 1.0, "P0": 1.0,
 }
 
 # Parameters the fitter is allowed to vary (initial latent state is fixed).

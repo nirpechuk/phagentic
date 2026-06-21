@@ -44,7 +44,7 @@ return class Component extends DCLogic {
     this._defaultConfig={ mosfets:[{name:'Glucose Pump',pin:18,mode:'digital'},{name:'NaOH Pump',pin:19,mode:'digital'},{name:'Stirrer',pin:23,mode:'pwm'}], sensor_light:{pin:25} };
     this._pins=this.pinsFromConfig(this._defaultConfig);   // sets this._pins + this._names from config
     this.state={
-      onLanding:true, running:true, mode:'auto', cycling:false, bumped:false, uiZoom:1.0, live:false,
+      onLanding:true, running:true, mode:'auto', cycling:false, bumped:false, uiZoom:1.0, live:false, graphSpanS:60,
       controller:'amplitude',   // AUTO controller: 'amplitude' (relay+PID, default), 'heuristic' (phase scheduler) or 'mpc' (grey-box ODE)
       // setpoints (UI-owned; the in-browser control loop reads these)
       stirrer:150, glucoseDoseMs:500, ampThreshold:40, targetHalfPeriod:25, solveMode:'period', light:255, calibTxt:'', source:'off',
@@ -152,7 +152,9 @@ return class Component extends DCLogic {
     this._glucosePulses=m.glucose_pulses; this._lastPulseT=m.last_pulse_t;
     this._mode=m.mode; this._modelName=m.model_name; this._modelParams=m.model_params||{}; this._modelError=!!m.model_error;
     this._ble=m.ble;
-    if(this.state.running){ this._hist.push({t:+(m.t||0).toFixed(2), blue:+(m.blue||0).toFixed(4), blueEst:+(this._blueEst||0).toFixed(4), mid:0.5}); if(this._hist.length>600) this._hist.shift(); }
+    // Keep a few minutes of history so the graph can zoom out to a long window;
+    // the render decimates dense buffers, so the cap is generous.
+    if(this.state.running){ this._hist.push({t:+(m.t||0).toFixed(2), blue:+(m.blue||0).toFixed(4), blueEst:+(this._blueEst||0).toFixed(4), mid:0.5}); if(this._hist.length>5000) this._hist.shift(); }
     if(this._cycles>=1) this.sayOnce('first','First full cycle complete — oscillation established.','win');
     if(this._amp>=0.6) this.sayOnce('strong','Strong swing — amplitude '+this._amp.toFixed(2)+'.','info');
     (m.narr_new||[]).forEach(n=>this.pushNarr(n.txt, n.kind));
@@ -505,6 +507,9 @@ return class Component extends DCLogic {
   zoomIn=()=>this.setState(s=>({ uiZoom:Math.min(1.4,+(s.uiZoom+0.08).toFixed(2)) }), ()=>this.measure());
   zoomOut=()=>this.setState(s=>({ uiZoom:Math.max(0.8,+(s.uiZoom-0.08).toFixed(2)) }), ()=>this.measure());
   zoomReset=()=>this.setState({ uiZoom:1.0 }, ()=>this.measure());
+  // Reaction-state graph time window: zoom out = longer period, in = recent detail.
+  zoomGraphOut=()=>this.setState(s=>({ graphSpanS:Math.min(300,Math.round(s.graphSpanS*1.6)) }));
+  zoomGraphIn=()=>this.setState(s=>({ graphSpanS:Math.max(15,Math.round(s.graphSpanS/1.6)) }));
   // Re-pack only the panels that are currently open; leave minimized ones minimized.
   tidyDesk=()=>{ const w=this.deskW(); this.setState(s=>({ panels:this.tidyLayout({...s.panels}, w), animating:true })); this.scheduleAnimEnd(); };
   bump=()=>{ this._bump=true; this.pushNarr('Disturbance injected — controller re-estimating.','warn'); this.setState({ bumped:true }); };
@@ -724,11 +729,35 @@ return class Component extends DCLogic {
     const palettes={ Meadow:['rgba(120,140,108,.4)','rgba(150,140,180,.34)','rgba(200,170,110,.36)','rgba(122,140,156,.34)'], Clay:['rgba(196,128,96,.4)','rgba(206,150,96,.36)','rgba(176,140,96,.34)','rgba(160,120,140,.32)'], Mist:['rgba(122,140,156,.4)','rgba(150,140,180,.36)','rgba(120,140,108,.32)','rgba(150,160,150,.3)'] };
     const pal=palettes[this.props.palette]||palettes.Meadow;
     // Oscillation waveform: blue intensity over the recent history, index-mapped to width.
-    const Hh=s.hist, n=Hh.length, X=i=>n>1?(i/(n-1))*680:0, Y=v=>196-Math.max(0,Math.min(1,v))*178;
+    const Hh=s.hist, n=Hh.length, Y=v=>196-Math.max(0,Math.min(1,v))*178;
+    // Goal line (horizontal): where the controller is driving blue to.
+    const goalY=Y(s.targetBlue).toFixed(1);
+    // Time-windowed waveform: show the last `graphSpanS` seconds across the width, so
+    // zooming out reveals a longer period. X maps by timestamp (robust to sample rate
+    // and to decimation), not by array index.
+    const span=s.graphSpanS, tEnd=n?Hh[n-1].t:0, tStart=tEnd-span;
+    const Xt=t=>span>0?((t-tStart)/span)*680:0;
+    const win=[]; for(let i=0;i<n;i++){ if(Hh[i].t>=tStart) win.push(Hh[i]); }
+    // Decimate to ~maxPts across the window. Bin by a fixed time grid
+    // (bucket = floor(t / dt)) and keep one sample per bucket, rather than
+    // selecting by window-relative index (i % step). A point's bucket is fixed by
+    // its timestamp, so it never changes as the window scrolls; index-based
+    // selection reshuffled the kept set every frame as old samples fell off the
+    // front, making the noisy raw trace shimmer on long spans. The decimation
+    // rate still scales with the window (more samples in view → coarser dt).
+    let draw=win; const maxPts=700;
+    if(win.length>maxPts){
+      const dt=span/maxPts; draw=[]; let last=null;
+      for(const p of win){ const b=Math.floor(p.t/dt); if(b!==last){ draw.push(p); last=b; } }
+      if(draw[draw.length-1]!==win[win.length-1]) draw.push(win[win.length-1]);
+    }
     // Two traces: basePath = raw observed blue (muted), ourPath = backend's
     // EMA-cleaned estimate (bold). Older history pre-estimate falls back to raw.
     let ourPath,basePath;
-    if(this._pc&&this._pc.hist===Hh){ ourPath=this._pc.o; basePath=this._pc.b; } else { ourPath=n?Hh.map((p,i)=>(i?'L':'M')+X(i).toFixed(1)+' '+Y(p.blueEst!=null?p.blueEst:p.blue).toFixed(1)).join(' '):''; basePath=n?Hh.map((p,i)=>(i?'L':'M')+X(i).toFixed(1)+' '+Y(p.blue).toFixed(1)).join(' '):''; this._pc={hist:Hh,o:ourPath,b:basePath}; }
+    if(this._pc&&this._pc.hist===Hh&&this._pc.span===span){ ourPath=this._pc.o; basePath=this._pc.b; }
+    else { ourPath=draw.length?draw.map((p,i)=>(i?'L':'M')+Xt(p.t).toFixed(1)+' '+Y(p.blueEst!=null?p.blueEst:p.blue).toFixed(1)).join(' '):'';
+           basePath=draw.length?draw.map((p,i)=>(i?'L':'M')+Xt(p.t).toFixed(1)+' '+Y(p.blue).toFixed(1)).join(' '):'';
+           this._pc={hist:Hh,span,o:ourPath,b:basePath}; }
     const kindColor={ info:'#2e2b24', dim:'rgba(46,43,36,.55)', warn:'#94762f', win:'#566e4b' };
     const narrFeed=s.narr.slice().reverse().map((m,i)=>({ txt:m.txt, color:kindColor[m.kind]||'#2e2b24', size:i===0?'14.5px':'13px', weight:i===0?'500':'400' }));
     const chatMsgs=s.chat.map(c=>{
@@ -805,7 +834,8 @@ return class Component extends DCLogic {
       oursCryst:s.blue.toFixed(2), baseCryst:s.amp.toFixed(2), oursGlow:s.glucoseActive?'0 0 34px rgba(148,118,47,.55)':'0 0 6px rgba(95,115,85,0)',
       turbidity:s.blue.toFixed(2), turbidityTxt:s.blue.toFixed(2),
       ourPath, basePath, baseFired:false, oursFired:false,
-      baseMarkX:'-10', oursMarkX:'-10',
+      baseMarkX:'-10', oursMarkX:'-10', goalY,
+      graphSpanTxt:(span>=120?(span/60).toFixed(span%60?1:0)+'m':Math.round(span)+'s'), zoomGraphIn:this.zoomGraphIn, zoomGraphOut:this.zoomGraphOut,
       superPct:Math.round((s.ampEst||0)*100), superW:((s.ampEst||0)*100).toFixed(0)+'%', obsAmpPct:Math.round(s.amp*100), titerTxt:s.halfPeriod.toFixed(1)+'s',
       telemetry:[{k:'BLUE · obs', v:Math.round(s.blue*100)+'%', c:'rgba(46,43,36,.55)'},{k:'BLUE · est', v:Math.round((s.blueEst!=null?s.blueEst:s.blue)*100)+'%', c:'#566e4b'},{k:'PHASE', v:(s.phaseEst||s.phase)==='blue'?'BLUE':'COLORLESS', c:'#2e2b24'},{k:'CYCLES', v:String(s.cycles), c:'#2e2b24'}],
       rewardTxt:String(s.cycles), lastYieldTxt:s.period?('~'+s.period.toFixed(0)+'s'):'—', narrFeed,

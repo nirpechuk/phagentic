@@ -81,3 +81,30 @@ def test_rescue_pumps_on_collapse_and_stall():
     assert dying.glucose is True
     stalled = c.decide(_clean(stall_risk=0.9, cycle_event=True))
     assert stalled.naoh is True
+
+
+def test_glucose_fires_when_fall_stalls_without_cycle_events():
+    """Stuck high on the way to colourless (no cycle events) ⇒ feed glucose."""
+    c = AmplitudeController()
+    c.set_params({"target_amplitude": 0.7, "low_threshold": 0.1,
+                  "stall_grace_s": 20.0, "amp_floor": 0.0})  # disable amplitude-decay path
+    c.decide(_clean(t=0.0, blue_level=0.7))                  # start at peak → falling
+    assert c._rising is False
+    # blue stuck at 0.6 (above colourless), cycles stopped → no progress downward
+    held = c.decide(_clean(t=10.0, blue_level=0.6, cycle_event=False))
+    assert held.glucose is False                             # first falling sample → arms watchdog
+    stuck = c.decide(_clean(t=31.0, blue_level=0.6, cycle_event=False))
+    assert stuck.glucose is True                             # 21s without progress → reductant feed
+
+
+def test_glucose_held_off_when_fall_is_progressing():
+    """A slow-but-moving fall is not a stall — don't waste glucose on it."""
+    c = AmplitudeController()
+    c.set_params({"target_amplitude": 0.7, "low_threshold": 0.1,
+                  "stall_grace_s": 20.0, "amp_floor": 0.0})
+    c.decide(_clean(t=0.0, blue_level=0.7))                  # falling
+    blue = 0.7
+    for i in range(1, 60):                                   # creeps down 0.01 / step
+        blue = max(0.1, blue - 0.01)
+        d = c.decide(_clean(t=float(i), blue_level=blue, cycle_event=False))
+        assert d.glucose is False                            # progress resets the watchdog

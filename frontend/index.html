@@ -206,6 +206,11 @@
         <div onMouseDown="{{ panels.world.resize }}" title="drag to resize" style="position:absolute; right:2px; bottom:2px; width:18px; height:18px; cursor:nwse-resize; z-index:6; border-right:2px solid rgba(59,55,47,.3); border-bottom:2px solid rgba(59,55,47,.3); border-bottom-right-radius:8px;"></div>
         <div onMouseDown="{{ dragH.world }}" style="cursor:grab; padding:13px 22px 9px; display:flex; align-items:center; justify-content:space-between;">
           <span style="font-family:'JetBrains Mono',monospace; font-size:12.5px; letter-spacing:.18em; color:rgba(46,43,36,.55);">REACTION STATE</span>
+          <div onMouseDown="{{ stopProp }}" style="display:flex; align-items:center; gap:7px; margin-right:34px;">
+            <button onClick="{{ zoomGraphOut }}" title="zoom out · longer time window" style="cursor:pointer; display:flex; align-items:center; justify-content:center; width:22px; height:22px; padding:0; border-radius:6px; background:rgba(59,55,47,.05); border:1px solid rgba(59,55,47,.12); color:rgba(46,43,36,.6); font-size:15px; line-height:1; transition:background .15s;" style-hover="background:rgba(59,55,47,.13); color:#2e2b24;">−</button>
+            <span style="font-family:'JetBrains Mono',monospace; font-size:11px; color:rgba(46,43,36,.5); min-width:30px; text-align:center;">{{ graphSpanTxt }}</span>
+            <button onClick="{{ zoomGraphIn }}" title="zoom in · shorter time window" style="cursor:pointer; display:flex; align-items:center; justify-content:center; width:22px; height:22px; padding:0; border-radius:6px; background:rgba(59,55,47,.05); border:1px solid rgba(59,55,47,.12); color:rgba(46,43,36,.6); font-size:15px; line-height:1; transition:background .15s;" style-hover="background:rgba(59,55,47,.13); color:#2e2b24;">+</button>
+          </div>
           <button onMouseDown="{{ stopProp }}" onClick="{{ closeH.world }}" title="close" style="position:absolute; top:11px; right:13px; z-index:8; cursor:pointer; display:flex; align-items:center; justify-content:center; width:23px; height:23px; padding:0; border-radius:50%; background:rgba(59,55,47,.05); border:1px solid rgba(59,55,47,.12); color:rgba(46,43,36,.45); font-size:14px; line-height:1; transition:background .15s, color .15s, border-color .15s;" style-hover="background:rgba(59,55,47,.13); color:#2e2b24; border-color:rgba(59,55,47,.24);">×</button>
         </div>
         <div style="flex:1; min-height:0; padding:4px 22px 16px; display:flex; flex-direction:column;">
@@ -213,11 +218,14 @@
             <svg viewBox="0 0 680 220" preserveAspectRatio="none" style="width:100%; height:100%; display:block;">
               <line x1="0" y1="18" x2="680" y2="18" stroke="rgba(59,55,47,.14)" stroke-dasharray="3 5"/>
               <line x1="0" y1="196" x2="680" y2="196" stroke="rgba(59,55,47,.14)" stroke-dasharray="3 5"/>
+              <!-- goal level: where the controller is driving blue to -->
+              <line x1="0" y1="{{ goalY }}" x2="680" y2="{{ goalY }}" stroke="rgba(86,110,75,.45)" stroke-width="1.2" stroke-dasharray="6 5"/>
               <sc-if value="{{ baseFired }}" hint-placeholder-val="{{ false }}"><line x1="{{ baseMarkX }}" y1="6" x2="{{ baseMarkX }}" y2="214" stroke="rgba(59,55,47,.3)" stroke-dasharray="2 4"/></sc-if>
               <sc-if value="{{ oursFired }}" hint-placeholder-val="{{ false }}"><line x1="{{ oursMarkX }}" y1="6" x2="{{ oursMarkX }}" y2="214" stroke="rgba(86,110,75,.65)"/></sc-if>
               <path d="{{ basePath }}" fill="none" stroke="rgba(59,55,47,.42)" stroke-width="1.8" stroke-linejoin="round"/>
               <path d="{{ ourPath }}" fill="none" stroke="#566e4b" stroke-width="2.6" stroke-linejoin="round"/>
             </svg>
+            <div style="position:absolute; right:2px; top:calc({{ goalY }} / 220 * 100%); transform:translateY(calc(-100% - 3px)); font-family:'JetBrains Mono',monospace; font-size:11px; color:rgba(86,110,75,.8);">goal</div>
             <div style="position:absolute; right:2px; top:-4px; font-family:'JetBrains Mono',monospace; font-size:12px; color:rgba(46,43,36,.5);">blue</div>
             <div style="position:absolute; right:2px; bottom:16px; font-family:'JetBrains Mono',monospace; font-size:12px; color:rgba(46,43,36,.5);">colorless</div>
           </div>
