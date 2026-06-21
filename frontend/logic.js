@@ -34,8 +34,8 @@ return class Component extends DCLogic {
     this.labels={swatch:'COLOUR LOG', world:'OSCILLATION', narr:'NARRATION', manual:'CONSOLE', calc:'CALCULATOR', ask:'ASK PHAGE', runs:'RUNS', notes:'TEMP NOTES', actuators:'ACTUATORS'};
     // starting size per panel (px, design space); user-resizable from the corner.
     this._size={ swatch:[350,460], world:[620,420], narr:[360,420], manual:[490,350], calc:[360,430], ask:[400,420], runs:[350,400], notes:[340,420], actuators:[360,300] };
-    this.dragH={}; this.closeH={}; this.openH={}; this.resizeH={};
-    this.panelIds.forEach(id=>{ this.dragH[id]=this.startDrag(id); this.closeH[id]=()=>this.closePanel(id); this.openH[id]=()=>this.openPanel(id); this.resizeH[id]=this.startResize(id); });
+    this.dragH={}; this.closeH={}; this.openH={}; this.resizeH={}; this.frontH={};
+    this.panelIds.forEach(id=>{ this.dragH[id]=this.startDrag(id); this.closeH[id]=()=>this.closePanel(id); this.openH[id]=()=>this.openPanel(id); this.resizeH[id]=this.startResize(id); this.frontH[id]=()=>this.bringToFront(id); });
     this.knobCool=this.startKnob('stirrer',0,255); this.knobMoi=this.startKnob('glucoseDoseMs',50,2000); this.knobThr=this.startKnob('ampThreshold',5,95); this.knobLight=this.startKnob('light',0,255);
     this._zc=this.panelIds.length;
     const mk=(open,id)=>({x:20,y:20,w:this._size[id][0],h:this._size[id][1],open, zi:this.panelIds.indexOf(id)+1});
@@ -703,7 +703,7 @@ return class Component extends DCLogic {
     });
     const stall=s.stallRisk, stallCol=stall<0.5?'#94762f':stall<0.8?'#b06a45':'#9c4a3c';
     const active=(s.drag&&s.drag.id)||(s.resize&&s.resize.id); const pf={};
-    for(const id in s.panels){ const p=s.panels[id]; const live=(active===id); pf[id]={ tf:`translate3d(${p.x.toFixed(1)}px,${p.y.toFixed(1)}px,0)`, z:(p.zi||1)+(live?1000:0), w:p.w+'px', h:p.h+'px', open:p.open, title:this.labels[id], resize:this.resizeH[id], trans:live?'none':'transform .5s cubic-bezier(.4,0,.2,1), width .5s cubic-bezier(.4,0,.2,1), height .5s cubic-bezier(.4,0,.2,1)' }; }
+    for(const id in s.panels){ const p=s.panels[id]; const live=(active===id); pf[id]={ tf:`translate3d(${p.x.toFixed(1)}px,${p.y.toFixed(1)}px,0)`, z:(p.zi||1)+(live?1000:0), w:p.w+'px', h:p.h+'px', open:p.open, title:this.labels[id], resize:this.resizeH[id], front:this.frontH[id], trans:live?'none':'transform .5s cubic-bezier(.4,0,.2,1), width .5s cubic-bezier(.4,0,.2,1), height .5s cubic-bezier(.4,0,.2,1)' }; }
     const dockTabs=this.panelIds.filter(id=>s.panels[id] && !s.panels[id].open).map(id=>({ id, label:this.labels[id], h:this.openH[id] }));
     const contentHpx=this.deskContentH(s.panels);
     const pr=this.predict(s.mode==='manual'?s.stirrer:s.stirrerOut);
