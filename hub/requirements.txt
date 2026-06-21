@@ -1,3 +1,4 @@
 pyserial>=3.5
 flask>=3.0
 bleak>=0.21
+anthropic>=0.40
