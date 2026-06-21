@@ -29,11 +29,6 @@ return class Component extends DCLogic {
       {id:'cycles', name:'Cycles per run', expr:'N = (R·60) ÷ T', desc:'How many oscillations fit a run of a given length.', fields:[['Run length','R','min'],['Period','P','s']], fn:v=>v.P?(v.R*60)/v.P:0, unit:'cycles', dp:0},
       {id:'temp', name:'Temperature  °C ⇄ °F', expr:'°F = °C·9/5 + 32', desc:'Convert between Celsius and Fahrenheit — type in either box.', converter:true},
     ];
-    this.chips=[
-      {l:'Why did amplitude drop?', h:()=>this.sendChat('Why did amplitude drop?')},
-      {l:'How do I speed it up?', h:()=>this.sendChat('How do I speed it up?')},
-      {l:'Is it about to stall?', h:()=>this.sendChat('Is it about to stall?')},
-    ];
     this.panelIds=['reactors','swatch','world','narr','manual','calc','ask','runs'];
     this.labels={reactors:'VESSEL', swatch:'COLOUR LOG', world:'OSCILLATION', narr:'NARRATION', manual:'MANUAL CONSOLE', calc:'CALCULATOR', ask:'ASK PHAGE', runs:'RUNS'};
     // starting size per panel (px, design space); user-resizable from the corner.
@@ -262,7 +257,15 @@ return class Component extends DCLogic {
     const t=Math.max(0,this.now()-this._t0);
     this.setState({ t, blue:this._blue, rgb:this._rgb.slice(), lux:this._lux, amp:this._amp, period:this._period, halfPeriod:this._halfP, phase:this._phase, cycles:this._cycles, stallRisk:Math.max(0,Math.min(1,(t-this._lastExtremeT)/90)), stirrerOut:this._stirrerOut, glucoseActive:this._glucoseActive, naohActive:this._naohActive, glucosePulses:this._glucosePulses, lastPulseT:this._lastPulseT, hist:this._hist.slice(), narr:this._narr.slice(), runs:this._runs.slice() });
   }
-  componentDidUpdate(){ if(this._chatEl && this.state.chat.length!==this._chatLen){ this._chatLen=this.state.chat.length; this._chatEl.scrollTop=this._chatEl.scrollHeight; } }
+  componentDidUpdate(){
+    if(!this._chatEl) return;
+    const last=this.state.chat[this.state.chat.length-1];
+    // Scroll on a new message, or while the last reply is still streaming in.
+    if(this.state.chat.length!==this._chatLen || (last&&last.streaming)){
+      this._chatLen=this.state.chat.length;
+      this._chatEl.scrollTop=this._chatEl.scrollHeight;
+    }
+  }
 
   // Shelf / best-fit packing: lay open panels left→right in panelIds order,
   // wrapping to a new row when the next would overflow the desk width. This is
@@ -439,7 +442,8 @@ return class Component extends DCLogic {
   zoomIn=()=>this.setState(s=>({ uiZoom:Math.min(1.4,+(s.uiZoom+0.08).toFixed(2)) }), ()=>this.measure());
   zoomOut=()=>this.setState(s=>({ uiZoom:Math.max(0.8,+(s.uiZoom-0.08).toFixed(2)) }), ()=>this.measure());
   zoomReset=()=>this.setState({ uiZoom:1.0 }, ()=>this.measure());
-  tidyDesk=()=>{ const w=this.deskW(); this.setState(s=>{ const P={...s.panels}; this.panelIds.forEach(id=>{ if(id!=='calc'&&id!=='runs') P[id]={...P[id], open:true}; }); return { panels:this.packLayout(P, w), animating:true }; }); this.scheduleAnimEnd(); };
+  // Re-pack only the panels that are currently open; leave minimized ones minimized.
+  tidyDesk=()=>{ const w=this.deskW(); this.setState(s=>({ panels:this.packLayout({...s.panels}, w), animating:true })); this.scheduleAnimEnd(); };
   bump=()=>{ this._bump=true; this.pushNarr('Disturbance injected — controller re-estimating.','warn'); this.setState({ bumped:true }); };
   remelt=()=>this.resetRun(this.now(),true,'Manual restart — new run logged.');
   addRun=()=>{ this.resetRun(this.now(),true,'New run started — previous batch logged.'); const w=this.deskW(); this.setState(s=>{ const P={...s.panels}; P.runs={...P.runs, open:true}; return { panels:this.packLayout(P, w), animating:true }; }); this.scheduleAnimEnd(); };
@@ -509,7 +513,98 @@ return class Component extends DCLogic {
 
   setChatInput=(e)=>this.setState({ chatInput:e.target.value });
   chatKey=(e)=>{ if(e.key==='Enter') this.sendChat(); };
-  sendChat=(q)=>{ const text=(typeof q==='string'?q:this.state.chatInput).trim(); if(!text) return; this.setState(prev=>({ chat:prev.chat.concat([{role:'user',text},{role:'sys',text:this.respond(text)}]), chatInput:'' })); };
+
+  // Where the ASK PHAGE backend (hub/chat_server.py) lives. Override with
+  // window.PHAGENTIC_CHAT or ?chat=http://host:8090. The backend holds the API key.
+  chatBase(){
+    if(window.PHAGENTIC_CHAT) return window.PHAGENTIC_CHAT.replace(/\/$/,'');
+    const o=new URLSearchParams(location.search).get('chat'); if(o) return o.replace(/\/$/,'');
+    return 'http://localhost:8090';
+  }
+
+  // Compact snapshot of the live reaction state, sent with each question so the assistant
+  // can ground its answer in what's happening right now.
+  chatSnapshot(){
+    const s=this.state;
+    let source='simulation';
+    if(this._ble&&this._ble.connected) source='bluetooth';
+    else if(this._be&&this._be.connected) source='hub';
+    return {
+      source, running:!!s.running, mode:s.mode,
+      t:+(+s.t).toFixed(1), phase:s.phase,
+      blue:+(+s.blue).toFixed(3), amp:+(+s.amp).toFixed(3),
+      halfPeriod:+(+s.halfPeriod).toFixed(1), period:+(+s.period).toFixed(1),
+      cycles:s.cycles, stallRisk:+(+s.stallRisk).toFixed(2),
+      stirrerPct:Math.round((s.mode==='manual'?s.stirrer:s.stirrerOut)/255*100),
+      glucosePulses:s.glucosePulses, lux:s.lux, rgb:s.rgb,
+    };
+  }
+
+  sendChat=(q)=>{
+    const text=(typeof q==='string'?q:this.state.chatInput).trim(); if(!text) return;
+    const history=this.state.chat.map(c=>({role:c.role, text:c.text}));   // before this turn
+    const state=this.chatSnapshot();
+    this.setState(prev=>({ chat:prev.chat.concat([{role:'user',text},{role:'sys',text:'…',streaming:true}]), chatInput:'' }));
+    this.streamChat(text, history, state);
+  };
+
+  // Replace the in-flight assistant bubble's text as tokens stream in.
+  _setStreamingReply(text, done){
+    this.setState(prev=>{ const chat=prev.chat.slice(); const i=chat.map(c=>!!c.streaming).lastIndexOf(true); if(i>=0) chat[i]={role:'sys', text:text||(done?'':'…'), streaming:!done}; return { chat }; });
+  }
+
+  async streamChat(question, history, state){
+    let acc='';
+    try{
+      const res=await fetch(this.chatBase()+'/chat', { method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({question, history, state}) });
+      if(!res.ok||!res.body) throw new Error('chat backend '+res.status);
+      const reader=res.body.getReader(), dec=new TextDecoder(); let buf='';
+      for(;;){
+        const {value,done}=await reader.read(); if(done) break;
+        buf+=dec.decode(value,{stream:true});
+        let nl; while((nl=buf.indexOf('\n'))>=0){
+          const line=buf.slice(0,nl).trim(); buf=buf.slice(nl+1); if(!line) continue;
+          let ev; try{ ev=JSON.parse(line); }catch(_){ continue; }
+          if(ev.delta){ acc+=ev.delta; this._setStreamingReply(acc, false); }
+          else if(ev.error){ throw new Error(ev.error); }
+        }
+      }
+      // Empty reply (or a backend with no key) → fall back to the local responder.
+      this._setStreamingReply(acc.trim()?acc:this.respond(question), true);
+    }catch(e){
+      // Backend unreachable (no chat server running, offline demo) → local rule-based answer.
+      this._setStreamingReply(this.respond(question), true);
+    }
+  }
+
+  // Minimal, safe Markdown → HTML for chat bubbles. Escapes first, then handles bold,
+  // italic, inline code, links, headers, and bullet/numbered lists.
+  mdEscape(s){ return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
+  mdInline(s){
+    return s
+      .replace(/`([^`]+)`/g,'<code style="background:rgba(59,55,47,.1); padding:1px 5px; border-radius:5px; font-size:.92em;">$1</code>')
+      .replace(/\*\*([^*]+)\*\*/g,'<strong>$1</strong>')
+      .replace(/__([^_]+)__/g,'<strong>$1</strong>')
+      .replace(/(^|[^*])\*([^*\n]+)\*/g,'$1<em>$2</em>')
+      .replace(/\[([^\]]+)\]\((https?:[^)\s]+)\)/g,'<a href="$2" target="_blank" rel="noopener" style="color:#566e4b;">$1</a>');
+  }
+  mdToHtml(text){
+    const lines=this.mdEscape(text).split(/\n/);
+    let html='', list=null;
+    const closeList=()=>{ if(list){ html+='</'+list+'>'; list=null; } };
+    for(const raw of lines){
+      const line=raw.trim();
+      if(!line){ closeList(); continue; }
+      let m;
+      if((m=line.match(/^#{1,6}\s+(.*)$/))){ closeList(); html+='<div style="font-weight:600; margin:4px 0 2px;">'+this.mdInline(m[1])+'</div>'; continue; }
+      if((m=line.match(/^[-*]\s+(.*)$/))){ if(list!=='ul'){ closeList(); html+='<ul style="margin:4px 0; padding-left:18px;">'; list='ul'; } html+='<li>'+this.mdInline(m[1])+'</li>'; continue; }
+      if((m=line.match(/^\d+\.\s+(.*)$/))){ if(list!=='ol'){ closeList(); html+='<ol style="margin:4px 0; padding-left:20px;">'; list='ol'; } html+='<li>'+this.mdInline(m[1])+'</li>'; continue; }
+      closeList(); html+='<div>'+this.mdInline(line)+'</div>';
+    }
+    closeList();
+    return html;
+  }
+
   respond(q){
     const s=this.state, ql=q.toLowerCase();
     if(/why|drop|decay|amplitude|weaker|small/.test(ql)) return 'Amplitude is '+Math.round(s.amp*100)+'%. It decays as glucose (reducing power) is consumed; when it stays under the threshold for two cycles the controller pulses the glucose pump to restore the swing.';
@@ -531,7 +626,10 @@ return class Component extends DCLogic {
     if(this._pc&&this._pc.hist===Hh){ ourPath=this._pc.o; basePath=this._pc.b; } else { ourPath=n?Hh.map((p,i)=>(i?'L':'M')+X(i).toFixed(1)+' '+Y(p.blue).toFixed(1)).join(' '):''; basePath=n?('M0 '+Y(0.5).toFixed(1)+' L680 '+Y(0.5).toFixed(1)):''; this._pc={hist:Hh,o:ourPath,b:basePath}; }
     const kindColor={ info:'#2e2b24', dim:'rgba(46,43,36,.55)', warn:'#94762f', win:'#566e4b' };
     const narrFeed=s.narr.slice().reverse().map((m,i)=>({ txt:m.txt, color:kindColor[m.kind]||'#2e2b24', size:i===0?'14.5px':'13px', weight:i===0?'500':'400' }));
-    const chatMsgs=s.chat.map(c=>({ text:c.text, align:c.role==='user'?'flex-end':'flex-start', bg:c.role==='user'?'#6f8466':'rgba(255,255,255,.55)', color:c.role==='user'?'#fbf8f2':'#2e2b24' }));
+    const chatMsgs=s.chat.map(c=>{
+      const html=c.role==='user' ? this.mdEscape(c.text).replace(/\n/g,'<br>') : this.mdToHtml(c.text);
+      return { align:c.role==='user'?'flex-end':'flex-start', bg:c.role==='user'?'#6f8466':'rgba(255,255,255,.55)', color:c.role==='user'?'#fbf8f2':'#2e2b24', mref:(el)=>{ if(el) el.innerHTML=html; } };
+    });
     const stall=s.stallRisk, stallCol=stall<0.5?'#94762f':stall<0.8?'#b06a45':'#9c4a3c';
     const active=(s.drag&&s.drag.id)||(s.resize&&s.resize.id); const pf={};
     for(const id in s.panels){ const p=s.panels[id]; const live=(active===id); pf[id]={ tf:`translate3d(${p.x.toFixed(1)}px,${p.y.toFixed(1)}px,0)`, z:(p.zi||1)+(live?1000:0), w:p.w+'px', h:p.h+'px', open:p.open, title:this.labels[id], resize:this.resizeH[id], trans:live?'none':'transform .5s cubic-bezier(.4,0,.2,1), width .5s cubic-bezier(.4,0,.2,1), height .5s cubic-bezier(.4,0,.2,1)' }; }
@@ -624,7 +722,7 @@ return class Component extends DCLogic {
       recalibrateSensor:this.recalibrateSensor, reloadCfg:this.reloadCfg, calibTxt:s.calibTxt,
       calcDisplay:s.calc.display, calcKeys:this.calcKeys, calcKeysMode:s.calcTab==='keys', calcFxMode:s.calcTab==='fx', calcKeysTab:this.calcKeysTab, calcFxTab:this.calcFxTab, calcClear:this.calcClear, calcBack:this.calcBack,
       calcKeysColor:s.calcTab==='keys'?'#2e2b24':'rgba(46,43,36,.4)', calcFxColor:s.calcTab==='fx'?'#2e2b24':'rgba(46,43,36,.4)',
-      chatMsgs, chips:this.chips, chatInput:s.chatInput, setChatInput:this.setChatInput, chatKey:this.chatKey, sendChat:this.sendChat, chatRef:this.chatRef,
+      chatMsgs, chatInput:s.chatInput, setChatInput:this.setChatInput, chatKey:this.chatKey, sendChat:this.sendChat, chatRef:this.chatRef,
       runsList, runsEmpty, addRun:this.addRun,
       runNameTxt:s.runName, runColorVal:s.runColor, setRunName:this.setRunName, openColor:this.openColor, colorOpen:s.colorOpen,
       colorSwatches:this.runPalette.concat(this.huePalette).map(hex=>({ hex, pick:()=>this.pickRunColor(hex) })),

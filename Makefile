@@ -7,7 +7,7 @@ PY     := $(VENV)/bin/python
 UI_PORT ?= 5173
 
 # ────────────────────────────────────────────────────────────────────────
-.PHONY: setup run dashboard ui upload detect help
+.PHONY: setup run dashboard ui chat upload detect help
 
 help:
 	@echo ""
@@ -15,6 +15,7 @@ help:
 	@echo "  make setup      — create Python venv and install deps"
 	@echo "  make run        — stream RGB to terminal (set BLE_DEVICE to override name)"
 	@echo "  make dashboard  — open web dashboard with color + PWM sliders"
+	@echo "  make chat       — start the ASK PHAGE assistant backend (needs ANTHROPIC_API_KEY)"
 	@echo "  make upload     — compile + flash ESP32 (set PORT to override port)"
 	@echo "  make detect     — list connected serial ports / boards"
 	@echo ""
@@ -39,6 +40,13 @@ run:
 dashboard:
 	@test -f $(PY) || (echo "Run 'make setup' first."; exit 1)
 	SERIAL_PORT=$(PORT) $(PY) hub/dashboard.py
+
+# ASK PHAGE assistant backend. Holds the Anthropic API key (so it never reaches the
+# browser) and streams Claude's replies to the UI's chat panel. Set ANTHROPIC_API_KEY
+# first; override the model with PHAGENTIC_CHAT_MODEL=claude-sonnet-4-6.
+chat:
+	@test -f $(PY) || (echo "Run 'make setup' first."; exit 1)
+	$(PY) hub/chat_server.py
 
 upload:
 	@echo "Board: $(BOARD)   Port: $(PORT)"

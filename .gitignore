@@ -1,0 +1,16 @@
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+.venv/
+venv/
+
+# Node (frontend build tooling)
+node_modules/
+
+# OS / editor
+.DS_Store
+*.swp
+
+# Local env / secrets — never commit your API key
+.env
