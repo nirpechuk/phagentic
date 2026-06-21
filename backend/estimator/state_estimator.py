@@ -51,7 +51,7 @@ class CleanState:
 class StateEstimator:
     def __init__(
         self,
-        blue_alpha: float = 0.35,      # EMA on blue: kills BLE jitter, negligible lag at 20 Hz
+        blue_alpha: float = 0.05,      # EMA on blue ≈ 1 s window at 20 Hz (mean lag ≈ (1-α)/α ≈ 19 samples)
         amp_alpha: float = 0.3,
         baseline_alpha: float = 0.01,  # slow midline tracker
         nominal_period: float = 20.0,

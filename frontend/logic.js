@@ -32,7 +32,7 @@ return class Component extends DCLogic {
     this.panelIds=['swatch','world','narr','manual','calc','ask','runs','notes','actuators'];
     this.labels={swatch:'COLOUR LOG', world:'OSCILLATION', narr:'NARRATION', manual:'CONSOLE', calc:'CALCULATOR', ask:'ASK PHAGE', runs:'RUNS', notes:'TEMP NOTES', actuators:'ACTUATORS'};
     // starting size per panel (px, design space); user-resizable from the corner.
-    this._size={ swatch:[350,460], world:[620,420], narr:[360,420], manual:[560,640], calc:[360,430], ask:[400,420], runs:[350,400], notes:[340,420], actuators:[360,300] };
+    this._size={ swatch:[350,460], world:[620,420], narr:[360,420], manual:[490,350], calc:[360,430], ask:[400,420], runs:[350,400], notes:[340,420], actuators:[360,300] };
     this.dragH={}; this.closeH={}; this.openH={}; this.resizeH={};
     this.panelIds.forEach(id=>{ this.dragH[id]=this.startDrag(id); this.closeH[id]=()=>this.closePanel(id); this.openH[id]=()=>this.openPanel(id); this.resizeH[id]=this.startResize(id); });
     this.knobCool=this.startKnob('stirrer',0,255); this.knobMoi=this.startKnob('glucoseDoseMs',50,2000); this.knobThr=this.startKnob('ampThreshold',5,95); this.knobLight=this.startKnob('light',0,255);
@@ -52,7 +52,7 @@ return class Component extends DCLogic {
       // measured / derived (flushed from the ingest loop ~10Hz)
       runName:'Run 01', runColor:'#6f8466', colorOpen:false, hint:'', hintX:0, hintY:0,
       t:0, runIndex:1, blue:0.5, rgb:[228,226,214], lux:0,
-      amp:0, period:0, halfPeriod:0, phase:'colorless', cycles:0, stallRisk:0,
+      amp:0, period:0, halfPeriod:0, phase:'colorless', blueEst:0.5, ampEst:0, phaseEst:'colorless', cycles:0, stallRisk:0,
       stirrerOut:150, lightOut:255, glucoseActive:false, naohActive:false, glucosePulses:0, lastPulseT:null,
       hist:[],
       narr:[{txt:'System online. Awaiting first blue↔colorless swing.', kind:'info'}],
@@ -129,6 +129,7 @@ return class Component extends DCLogic {
     this._blue=0.5; this._rgb=[228,226,214]; this._lux=0;
     this._prevBlue=0.5; this._dir=0; this._lastMax=0.5; this._lastMin=0.5; this._extT=[];
     this._amp=0; this._period=0; this._halfP=0; this._cycles=0; this._phase='colorless'; this._lastExtremeT=0;
+    this._blueEst=0.5; this._ampEst=0; this._phaseEst='colorless';
     this._piI=0; this._lowAmp=0; this._lastCycleSeen=0; this._sendAcc=0;
     this._stirrerOut=(this.state&&this.state.stirrer)||150; this._lightOut=(this.state&&this.state.light)||255; this._glucoseActive=false; this._naohActive=false; this._glucosePulses=0; this._lastPulseT=null; this._pulseUntil=0; this._naohUntil=0;
     this._hist=[]; this._narr=[{txt:'System online. Awaiting first blue↔colorless swing.', kind:'info'}];
@@ -142,13 +143,14 @@ return class Component extends DCLogic {
   applyState(m){
     this._t=m.t; this._blue=m.blue; if(m.rgb) this._rgb=m.rgb.slice(); this._lux=m.lux;
     this._amp=m.amp; this._period=m.period; this._halfP=m.half_period; this._phase=m.phase;
+    this._blueEst=(m.blue_est!=null?m.blue_est:m.blue); this._ampEst=(m.amp_est!=null?m.amp_est:m.amp); this._phaseEst=m.phase_est||m.phase;
     this._cycles=m.cycles; this._stallRisk=m.stall_risk;
     this._stirrerOut=m.stirrer_out; this._lightOut=m.light_out;
     this._glucoseActive=!!m.glucose_active; this._naohActive=!!m.naoh_active;
     this._glucosePulses=m.glucose_pulses; this._lastPulseT=m.last_pulse_t;
     this._mode=m.mode; this._modelName=m.model_name; this._modelParams=m.model_params||{}; this._modelError=!!m.model_error;
     this._ble=m.ble;
-    if(this.state.running){ this._hist.push({t:+(m.t||0).toFixed(2), blue:+(m.blue||0).toFixed(4), mid:0.5}); if(this._hist.length>600) this._hist.shift(); }
+    if(this.state.running){ this._hist.push({t:+(m.t||0).toFixed(2), blue:+(m.blue||0).toFixed(4), blueEst:+(this._blueEst||0).toFixed(4), mid:0.5}); if(this._hist.length>600) this._hist.shift(); }
     if(this._cycles>=1) this.sayOnce('first','First full cycle complete — oscillation established.','win');
     if(this._amp>=0.6) this.sayOnce('strong','Strong swing — amplitude '+this._amp.toFixed(2)+'.','info');
     (m.narr_new||[]).forEach(n=>this.pushNarr(n.txt, n.kind));
@@ -187,7 +189,7 @@ return class Component extends DCLogic {
     // state.mode is the UI view (auto / manual) and is user-owned — set only by the
     // AUTO/MANUAL toggle and LAUNCH. We deliberately do NOT sync it from the backend
     // mode here, so live state frames can't flip the view or hide the auto panel.
-    this.setState({ t:this._t||0, blue:this._blue, rgb:this._rgb.slice(), lux:this._lux, amp:this._amp, period:this._period, halfPeriod:this._halfP, phase:this._phase, cycles:this._cycles, stallRisk:this._stallRisk||0, stirrerOut:this._stirrerOut, lightOut:this._lightOut, glucoseActive:this._glucoseActive, naohActive:this._naohActive, glucosePulses:this._glucosePulses, lastPulseT:this._lastPulseT, hist:this._hist.slice(), narr:this._narr.slice(), runs:this._runs.slice(), source:src });
+    this.setState({ t:this._t||0, blue:this._blue, rgb:this._rgb.slice(), lux:this._lux, amp:this._amp, period:this._period, halfPeriod:this._halfP, phase:this._phase, blueEst:this._blueEst, ampEst:this._ampEst, phaseEst:this._phaseEst, cycles:this._cycles, stallRisk:this._stallRisk||0, stirrerOut:this._stirrerOut, lightOut:this._lightOut, glucoseActive:this._glucoseActive, naohActive:this._naohActive, glucosePulses:this._glucosePulses, lastPulseT:this._lastPulseT, hist:this._hist.slice(), narr:this._narr.slice(), runs:this._runs.slice(), source:src });
   }
   componentDidUpdate(){
     if(!this._chatEl) return;
@@ -374,10 +376,32 @@ return class Component extends DCLogic {
   // Entering auto is passive — it just shows the goal inputs. The model does not
   // start until LAUNCH (startCycling). Backend stays idle (manual) until then.
   watchRace=()=>{ const w=this.deskW(); this.setState(s=>{ const keep=new Set(['swatch','world','narr','manual','actuators']); const P={...s.panels}; this.panelIds.forEach(id=>{ P[id]={...P[id], open:keep.has(id)}; }); return { onLanding:false, running:true, mode:'auto', panels:this.packLayout(P, w), animating:true }; }, ()=>this.measure()); this.scheduleAnimEnd(); };
-  // Play / pause actually stops & resumes the model. Pause → backend 'manual'
-  // (holds outputs); resume → re-enter 'ml' (the model instance + its goal persist;
-  // we must NOT re-send setModel, which would build a fresh model and wipe the goal).
-  toggleRun=()=>{ const running=!this.state.running; if(this._be){ if(!running) this._be.setMode('manual'); else if(this.state.cycling) this._be.setMode('ml'); } this.setState({ running }); this.pushNarr(running?(this.state.cycling?'▶ Model resumed.':'▶ Resumed.'):'⏸ Paused — model holding outputs.', running?'info':'warn'); };
+  // Play / pause. Pause stops the model AND drives every actuator off, after
+  // snapshotting their current values; play restores that snapshot and (if the
+  // model was running) re-enters 'ml' — the model instance + its goal persist,
+  // so we must NOT re-send setModel, which would build a fresh model and wipe the goal.
+  toggleRun=()=>{
+    const running=!this.state.running;
+    if(!running){
+      // PAUSE — remember the live actuator state, then turn everything off.
+      this._prePause={ stirrer:this.state.stirrer, light:this.state.light, glucoseOn:this.state.glucoseOn, naohOn:this.state.naohOn };
+      if(this._be) this._be.setMode('manual');
+      this.cmdSet('set_pwm','stirrer',0); this.cmdSet('set_pwm','light',0);
+      this.cmdSet('set_digital','glucose',false); this.cmdSet('set_digital','naoh',false);
+      this._stirrerOut=0; this._lightOut=0;
+      this.setState({ running:false, stirrer:0, light:0, glucoseOn:false, naohOn:false });
+      this.pushNarr('⏸ Paused — all outputs off.', 'warn');
+    } else {
+      // PLAY — restore the snapshot taken at pause, then resume the model if it was running.
+      const p=this._prePause||{ stirrer:this.state.stirrer, light:this.state.light, glucoseOn:this.state.glucoseOn, naohOn:this.state.naohOn };
+      this.cmdSet('set_pwm','stirrer',p.stirrer); this.cmdSet('set_pwm','light',p.light);
+      this.cmdSet('set_digital','glucose',p.glucoseOn); this.cmdSet('set_digital','naoh',p.naohOn);
+      this._stirrerOut=Math.round(p.stirrer); this._lightOut=Math.round(p.light);
+      if(this._be && this.state.cycling) this._be.setMode('ml');
+      this.setState({ running:true, stirrer:p.stirrer, light:p.light, glucoseOn:p.glucoseOn, naohOn:p.naohOn });
+      this.pushNarr(this.state.cycling?'▶ Model resumed — outputs restored.':'▶ Resumed — outputs restored.', 'info');
+    }
+  };
   // AUTO is just the view; it does not engage the model (LAUNCH does).
   setAuto=()=>this.setState({ mode:'auto' });
   // MANUAL stops the model and hands you direct control.
@@ -579,8 +603,10 @@ return class Component extends DCLogic {
     const pal=palettes[this.props.palette]||palettes.Meadow;
     // Oscillation waveform: blue intensity over the recent history, index-mapped to width.
     const Hh=s.hist, n=Hh.length, X=i=>n>1?(i/(n-1))*680:0, Y=v=>196-Math.max(0,Math.min(1,v))*178;
+    // Two traces: basePath = raw observed blue (muted), ourPath = backend's
+    // EMA-cleaned estimate (bold). Older history pre-estimate falls back to raw.
     let ourPath,basePath;
-    if(this._pc&&this._pc.hist===Hh){ ourPath=this._pc.o; basePath=this._pc.b; } else { ourPath=n?Hh.map((p,i)=>(i?'L':'M')+X(i).toFixed(1)+' '+Y(p.blue).toFixed(1)).join(' '):''; basePath=n?('M0 '+Y(0.5).toFixed(1)+' L680 '+Y(0.5).toFixed(1)):''; this._pc={hist:Hh,o:ourPath,b:basePath}; }
+    if(this._pc&&this._pc.hist===Hh){ ourPath=this._pc.o; basePath=this._pc.b; } else { ourPath=n?Hh.map((p,i)=>(i?'L':'M')+X(i).toFixed(1)+' '+Y(p.blueEst!=null?p.blueEst:p.blue).toFixed(1)).join(' '):''; basePath=n?Hh.map((p,i)=>(i?'L':'M')+X(i).toFixed(1)+' '+Y(p.blue).toFixed(1)).join(' '):''; this._pc={hist:Hh,o:ourPath,b:basePath}; }
     const kindColor={ info:'#2e2b24', dim:'rgba(46,43,36,.55)', warn:'#94762f', win:'#566e4b' };
     const narrFeed=s.narr.slice().reverse().map((m,i)=>({ txt:m.txt, color:kindColor[m.kind]||'#2e2b24', size:i===0?'14.5px':'13px', weight:i===0?'500':'400' }));
     const chatMsgs=s.chat.map(c=>{
@@ -650,10 +676,10 @@ return class Component extends DCLogic {
       tempOursTxt:Math.round(s.blue*100)+'%', tempBaseTxt:Math.round(s.amp*100)+'%', oursSolidTxt:s.phase.toUpperCase(), baseSolidTxt:'tgt '+s.ampThreshold+'%',
       oursCryst:s.blue.toFixed(2), baseCryst:s.amp.toFixed(2), oursGlow:s.glucoseActive?'0 0 34px rgba(148,118,47,.55)':'0 0 6px rgba(95,115,85,0)',
       turbidity:s.blue.toFixed(2), turbidityTxt:s.blue.toFixed(2),
-      progressPct:Math.min(100,s.t/1200*100).toFixed(1)+'%', ourPath, basePath, baseFired:false, oursFired:false,
+      ourPath, basePath, baseFired:false, oursFired:false,
       baseMarkX:'-10', oursMarkX:'-10',
-      superPct:Math.round(s.amp*100), superW:(s.amp*100).toFixed(0)+'%', titerTxt:s.halfPeriod.toFixed(1)+'s', hazPct:Math.round(s.stallRisk*100), hazW:(s.stallRisk*100).toFixed(0)+'%', hazColor:stallCol,
-      telemetry:[{k:'BLUE', v:Math.round(s.blue*100)+'%', c:'#566e4b'},{k:'AMP', v:Math.round(s.amp*100)+'%', c:'#2e2b24'},{k:'PERIOD', v:s.period.toFixed(1)+'s', c:'#94762f'},{k:'CYCLES', v:String(s.cycles), c:'#2e2b24'},{k:'STIRRER', v:Math.round(s.stirrerOut/255*100)+'%', c:'#2e2b24'},{k:'POLICY', v:s.mode==='auto'?'AUTO':'MANUAL', c:s.mode==='auto'?'#566e4b':'#94762f'}],
+      superPct:Math.round((s.ampEst||0)*100), superW:((s.ampEst||0)*100).toFixed(0)+'%', obsAmpPct:Math.round(s.amp*100), titerTxt:s.halfPeriod.toFixed(1)+'s',
+      telemetry:[{k:'BLUE · obs', v:Math.round(s.blue*100)+'%', c:'rgba(46,43,36,.55)'},{k:'BLUE · est', v:Math.round((s.blueEst!=null?s.blueEst:s.blue)*100)+'%', c:'#566e4b'},{k:'PHASE', v:(s.phaseEst||s.phase)==='blue'?'BLUE':'COLORLESS', c:'#2e2b24'},{k:'CYCLES', v:String(s.cycles), c:'#2e2b24'}],
       rewardTxt:String(s.cycles), lastYieldTxt:s.period?('~'+s.period.toFixed(0)+'s'):'—', narrFeed,
       autoSegBg:s.mode==='auto'?'#6f8466':'transparent', autoSegColor:s.mode==='auto'?'#fbf8f2':'rgba(46,43,36,.7)', manSegBg:s.mode==='manual'?'#94762f':'transparent', manSegColor:s.mode==='manual'?'#fbf8f2':'rgba(46,43,36,.7)',
       setAuto:this.setAuto, setManual:this.setManual, startCycling:this.startCycling, knobsOpacity:s.mode==='manual'?'1':'.5',

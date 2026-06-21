@@ -14,6 +14,7 @@ class StateStore:
         self._state: dict = {
             "t": 0.0, "blue": 0.5, "rgb": [228, 226, 214], "lux": 0,
             "amp": 0.0, "period": 0.0, "half_period": 0.0, "phase": "colorless",
+            "blue_est": 0.5, "amp_est": 0.0, "baseline_est": 0.5, "phase_est": "colorless",
             "cycles": 0, "stall_risk": 0.0,
             "stirrer_out": 0, "light_out": 255,
             "glucose_active": False, "naoh_active": False,

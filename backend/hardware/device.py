@@ -11,6 +11,7 @@ import time
 
 from backend.analysis.detector import Detector
 from backend.analysis.signal import blue_from_rgb, clamp
+from backend.estimator.state_estimator import StateEstimator
 from backend.control.arbiter import ControlArbiter
 from backend.control.model import ReactionState
 from backend.control.registry import list_models
@@ -46,6 +47,9 @@ class DeviceWorker:
         self.events = events
         self.arbiter = arbiter
         self.detector = detector
+        # Independent cleaner for the published "estimated state" telemetry —
+        # decoupled from whichever control model is active (which runs its own).
+        self.estimator = StateEstimator()
         self.roles = roles
         self.step = 1.0 / loop_hz
         self.reconnect_interval = reconnect_interval
@@ -121,6 +125,9 @@ class DeviceWorker:
             last_stirrer=self._last_applied.get("stirrer", self.arbiter.desired["stirrer"]),
             last_light=self._last_applied.get("light", self.arbiter.desired["light"]),
         )
+        # Cleaned "estimated state" off the same reading (EMA-smoothed blue +
+        # amplitude, continuous phase) — published alongside the raw observed state.
+        clean = self.estimator.update(state)
         desired, notes = self.arbiter.step(state, now)
         self._apply(desired)
         for n in notes:
@@ -131,6 +138,8 @@ class DeviceWorker:
             t=round(t, 2), blue=round(blue, 4), rgb=[r8, g8, b8], lux=raw["c"],
             amp=round(reading.amp, 4), period=round(reading.period, 2),
             half_period=round(reading.half_period, 2), phase=reading.phase,
+            blue_est=round(clean.blue_level, 4), amp_est=round(clean.amplitude, 4),
+            baseline_est=round(clean.baseline, 4), phase_est=clean.phase,
             cycles=reading.cycles, stall_risk=round(stall, 3),
             stirrer_out=desired["stirrer"], light_out=desired["light"],
             glucose_active=bool(desired["glucose"]), naoh_active=bool(desired["naoh"]),
@@ -201,6 +210,7 @@ class DeviceWorker:
                     self.arbiter.set_model_params(p.get("params", {}))
                 elif cmd.type == RESET_RUN:
                     self.detector.reset()
+                    self.estimator.reset()
                     self.arbiter.reset_models()
                     self._t0 = now
                     self.store.push_narr("Run reset.", "info")
@@ -242,6 +252,7 @@ class DeviceWorker:
                 self.ctrl.set_pwm(light["pin"], self.arbiter.desired["light"])
             self._last_applied.clear()        # re-assert every output on (re)connect
             self.detector.reset()             # avoid a giant period across the gap
+            self.estimator.reset()
             self._t0 = time.monotonic()
             self._connected = True
             self.store.update(ble="connected")

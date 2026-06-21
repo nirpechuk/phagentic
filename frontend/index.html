@@ -198,12 +198,11 @@
       <div style="position:absolute; left:0; top:0; width:{{ panels.world.w }}; height:{{ panels.world.h }}; transform:{{ panels.world.tf }}; z-index:{{ panels.world.z }}; border-radius:20px; background:linear-gradient(150deg, rgba(254,251,246,.74), rgba(247,242,233,.52)); -webkit-backdrop-filter:blur(15px) saturate(1.3); backdrop-filter:blur(15px) saturate(1.3); border:1px solid rgba(255,255,255,.64); box-shadow:0 28px 58px -28px rgba(70,60,48,.52), inset 0 1px 0 rgba(255,255,255,.9); display:flex; flex-direction:column; overflow:hidden; transition:{{ animTrans }};">
         <div onMouseDown="{{ panels.world.resize }}" title="drag to resize" style="position:absolute; right:2px; bottom:2px; width:18px; height:18px; cursor:nwse-resize; z-index:6; border-right:2px solid rgba(59,55,47,.3); border-bottom:2px solid rgba(59,55,47,.3); border-bottom-right-radius:8px;"></div>
         <div onMouseDown="{{ dragH.world }}" style="cursor:grab; padding:13px 22px 9px; display:flex; align-items:center; justify-content:space-between;">
-          <span style="font-family:'JetBrains Mono',monospace; font-size:12.5px; letter-spacing:.18em; color:rgba(46,43,36,.55);">OSCILLATION · STATE ESTIMATE</span>
+          <span style="font-family:'JetBrains Mono',monospace; font-size:12.5px; letter-spacing:.18em; color:rgba(46,43,36,.55);">REACTION STATE</span>
           <button onMouseDown="{{ stopProp }}" onClick="{{ closeH.world }}" style="cursor:pointer; background:none; border:none; color:rgba(46,43,36,.4); font-size:15px; line-height:1; padding:2px 4px;" style-hover="color:#2e2b24;">×</button>
         </div>
         <div style="flex:1; min-height:0; padding:4px 22px 16px; display:flex; flex-direction:column;">
-          <div style="height:3px; background:rgba(59,55,47,.12); position:relative; overflow:hidden; border-radius:2px;"><div style="position:absolute; left:0; top:0; bottom:0; width:{{ progressPct }}; background:linear-gradient(90deg,#ab8b52,#6f8466);"></div></div>
-          <div style="position:relative; margin-top:14px; flex:1; min-height:90px;">
+          <div style="position:relative; margin-top:8px; flex:1; min-height:90px;">
             <svg viewBox="0 0 680 220" preserveAspectRatio="none" style="width:100%; height:100%; display:block;">
               <line x1="0" y1="18" x2="680" y2="18" stroke="rgba(59,55,47,.14)" stroke-dasharray="3 5"/>
               <line x1="0" y1="196" x2="680" y2="196" stroke="rgba(59,55,47,.14)" stroke-dasharray="3 5"/>
@@ -216,28 +215,24 @@
             <div style="position:absolute; right:2px; bottom:16px; font-family:'JetBrains Mono',monospace; font-size:12px; color:rgba(46,43,36,.5);">colorless</div>
           </div>
           <div style="display:flex; gap:22px; font-family:'JetBrains Mono',monospace; font-size:12.5px; margin-top:8px;">
-            <span style="color:#566e4b;">— blue intensity · live</span>
-            <span style="color:rgba(46,43,36,.55);">— midline</span>
+            <span style="color:#566e4b;">— estimated state · cleaned</span>
+            <span style="color:rgba(46,43,36,.55);">— observed state · raw</span>
           </div>
-          <div style="display:grid; grid-template-columns:1.3fr 1fr 1fr; margin-top:18px; border-top:1px solid rgba(59,55,47,.12); padding-top:16px;">
+          <div style="display:grid; grid-template-columns:1fr 1fr; margin-top:18px; border-top:1px solid rgba(59,55,47,.12); padding-top:16px;">
             <div style="padding-right:22px; border-right:1px solid rgba(59,55,47,.12);">
-              <div style="font-family:'JetBrains Mono',monospace; font-size:12.5px; color:rgba(46,43,36,.55);">amplitude</div>
-              <div style="display:flex; align-items:baseline; gap:5px; margin-top:8px;"><span style="font-family:'JetBrains Mono',monospace; font-size:36px; font-weight:600; line-height:1; color:#2e2b24;">{{ superPct }}</span><span style="font-family:'JetBrains Mono',monospace; font-size:16px; color:rgba(46,43,36,.5);">%</span></div>
+              <div style="font-family:'JetBrains Mono',monospace; font-size:12.5px; color:rgba(46,43,36,.55);">amplitude · est</div>
+              <div style="display:flex; align-items:baseline; gap:5px; margin-top:8px;"><span style="font-family:'JetBrains Mono',monospace; font-size:36px; font-weight:600; line-height:1; color:#566e4b;">{{ superPct }}</span><span style="font-family:'JetBrains Mono',monospace; font-size:16px; color:rgba(46,43,36,.5);">%</span></div>
               <div style="height:4px; background:rgba(59,55,47,.12); margin-top:11px; overflow:hidden; border-radius:2px;"><div style="height:100%; width:{{ superW }}; background:linear-gradient(90deg,#847ea6,#6f8466);"></div></div>
-            </div>
-            <div style="padding:0 22px; border-right:1px solid rgba(59,55,47,.12);">
-              <div style="font-family:'JetBrains Mono',monospace; font-size:12.5px; color:rgba(46,43,36,.55);">half-period</div>
-              <div style="margin-top:8px;"><span style="font-family:'JetBrains Mono',monospace; font-size:36px; font-weight:600; line-height:1; color:#847ea6;">{{ titerTxt }}</span></div>
-              <div style="font-family:'JetBrains Mono',monospace; font-size:12px; color:rgba(46,43,36,.5); margin-top:11px;">s · between flips</div>
+              <div style="font-family:'JetBrains Mono',monospace; font-size:12px; color:rgba(46,43,36,.5); margin-top:9px;">observed {{ obsAmpPct }}%</div>
             </div>
             <div style="padding-left:22px;">
-              <div style="font-family:'JetBrains Mono',monospace; font-size:12.5px; color:rgba(46,43,36,.55);">stall risk</div>
-              <div style="display:flex; align-items:baseline; gap:5px; margin-top:8px;"><span style="font-family:'JetBrains Mono',monospace; font-size:36px; font-weight:600; line-height:1; color:{{ hazColor }};">{{ hazPct }}</span><span style="font-family:'JetBrains Mono',monospace; font-size:16px; color:rgba(46,43,36,.5);">%</span></div>
-              <div style="height:4px; background:rgba(59,55,47,.12); margin-top:11px; overflow:hidden; border-radius:2px;"><div style="height:100%; width:{{ hazW }}; background:{{ hazColor }};"></div></div>
+              <div style="font-family:'JetBrains Mono',monospace; font-size:12.5px; color:rgba(46,43,36,.55);">half-period</div>
+              <div style="margin-top:8px;"><span style="font-family:'JetBrains Mono',monospace; font-size:36px; font-weight:600; line-height:1; color:#847ea6;">{{ titerTxt }}</span></div>
+              <div style="font-family:'JetBrains Mono',monospace; font-size:12px; color:rgba(46,43,36,.5); margin-top:11px;">between flips</div>
             </div>
           </div>
           <div style="margin-top:14px; display:flex; border-top:1px solid rgba(59,55,47,.12); padding-top:13px; font-family:'JetBrains Mono',monospace;">
-            <sc-for list="{{ telemetry }}" as="tm" hint-placeholder-count="6"><div style="flex:1; padding:0 13px; border-right:1px solid rgba(59,55,47,.1);"><div style="font-size:11.5px; color:rgba(46,43,36,.5);">{{ tm.k }}</div><div style="font-size:15px; font-weight:500; margin-top:5px; color:{{ tm.c }};">{{ tm.v }}</div></div></sc-for>
+            <sc-for list="{{ telemetry }}" as="tm" hint-placeholder-count="4"><div style="flex:1; padding:0 13px; border-right:1px solid rgba(59,55,47,.1);"><div style="font-size:11.5px; color:rgba(46,43,36,.5);">{{ tm.k }}</div><div style="font-size:15px; font-weight:500; margin-top:5px; color:{{ tm.c }};">{{ tm.v }}</div></div></sc-for>
           </div>
         </div>
       </div>
