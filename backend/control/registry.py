@@ -11,9 +11,11 @@ from backend.control.pi_model import PIModel
 
 MODEL_REGISTRY: dict[str, Callable[[], Model]] = {
     "pi_baseline": PIModel,
-    # Goal-seeking controller (target hue at target time). Two entries differ
-    # only in their default controller; either can be switched live via the
-    # `controller` model-param. `goal_blue` uses the dependency-free heuristic;
+    # Amplitude controller: oscillate blue between a target peak and ~0 (relay +
+    # PID on the stirrer). This is the primary closed loop for "make it cycle".
+    "amplitude_lock": lambda: GoalModel("amplitude"),
+    # Hue controllers (target blue at a target time). They share GoalModel and the
+    # `controller` model-param; `goal_blue` is the dependency-free heuristic,
     # `goal_blue_mpc` plans on the fitted grey-box ODE.
     "goal_blue": lambda: GoalModel("heuristic"),
     "goal_blue_mpc": lambda: GoalModel("mpc"),

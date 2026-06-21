@@ -1,15 +1,22 @@
-# Goal-Seeking Controller — How to Train & Run It IRL
+# Goal Controllers — How to Train & Run Them IRL
 
-This is the controller that drives the Blue Bottle reaction to a **target blue
-intensity** (`goal_blue`, 0..1) by a **target time** (`ideal_time`, seconds since
-run start). You give it a goal; it picks the mixer level and (rarely) pumps.
+There are two distinct control objectives, each with its own model:
 
-There are two controllers, switchable at runtime:
+- **Oscillate** — *cycle blue between a target peak and ~colourless*. `amplitude_lock`
+  runs a relay + PID on the stirrer (`target_amplitude`, peak blue 0..1). The stirrer
+  only drives blue **up** (O2 → oxidise), so the **down** stroke is a passive fall
+  (stir off → glucose reduces it). This is the primary closed loop and what LAUNCH
+  engages. The **period is emergent** — set by the reaction's (slow) reduction rate,
+  not a free parameter.
+- **Hue** — *reach a target blue intensity* (`goal_blue`, 0..1) by a *target time*
+  (`ideal_time`, seconds since run start). `goal_blue` / `goal_blue_mpc` pick a
+  discrete mixer level (and rarely pumps) to land that crossing on the deadline.
 
-| Model name        | Controller | Needs training? | When to use |
-|-------------------|------------|-----------------|-------------|
-| `goal_blue`       | heuristic  | **No**          | Start here. Phase-aware scheduler. No sim, no fitting, no deps. |
-| `goal_blue_mpc`   | MPC        | Yes (fit ODE)   | Use only after fitting the ODE and passing the trust gate below. |
+| Model name       | Controller | Objective  | Needs training? | When to use |
+|------------------|------------|------------|-----------------|-------------|
+| `amplitude_lock` | amplitude  | oscillate  | **No**          | Make it cycle: blue peak ⇄ colourless. Relay + PID; start here. |
+| `goal_blue`      | heuristic  | hue        | **No**          | Reach a target blue by a deadline. Phase-aware, no deps. |
+| `goal_blue_mpc`  | MPC        | hue        | Yes (fit ODE)   | Hue only, after fitting the ODE + passing the trust gate. **Cannot oscillate** — the grey-box ODE has no limit cycle. |
 
 **Mixing is the primary lever.** Glucose and NaOH pumps add liquid volume (→
 dilution/drift), so they are used *only* to rescue a collapsing oscillation
@@ -33,10 +40,26 @@ usage is rate-limited and reported in `model_params` (`glucose_fired`,
    make probe PROBE_ARGS='--frames 1'      # sanity-check the stream first
    ```
 
-3. **Select the goal controller and set a goal.** Easiest from the UI (mode → ml,
-   model → `goal_blue`, then the goal params). Headless equivalent:
+3. **Pick an objective and set its goal.** Easiest from the UI (mode → ml, pick
+   the model, set its params). Headless equivalents:
+
+   *Oscillate — cycle blue peak ⇄ colourless (this is what LAUNCH does):*
    ```
    make probe PROBE_ARGS='--mode ml'
+   make probe PROBE_ARGS='--model amplitude_lock'
+   make probe PROBE_ARGS='--set-params {"target_amplitude":0.7}'
+   ```
+   - `target_amplitude` — peak blue the cycle rises to (0..1); it then falls to
+     `low_threshold` (≈ colourless) and back. The swing is the oscillation.
+   - A **relay** drives the active (rising) stroke with a PID to `target_amplitude`,
+     then cuts the stirrer and lets the reaction fall passively. Tune `low_threshold`
+     (how colourless before re-driving), `amp_kp`/`amp_ki` (rise aggressiveness),
+     `reach_tol` (how close to a setpoint before flipping). Period is **emergent**
+     — to cycle faster you need a faster reduction (e.g. shorten the fall by raising
+     `low_threshold`, or a small glucose feed); it is not directly settable.
+
+   *Hue — reach a target blue by a deadline:*
+   ```
    make probe PROBE_ARGS='--model goal_blue'
    make probe PROBE_ARGS='--set-params {"goal_blue":0.7,"ideal_time":180}'
    ```
@@ -45,9 +68,11 @@ usage is rate-limited and reported in `model_params` (`glucose_fired`,
      "N seconds from now": `--set-params {"goal_blue":0.7,"time_to_goal":120}`.
    - After `reset_run` the clock zeroes — re-send the goal (or use `time_to_goal`).
 
-4. **Watch it work.** The mixer should move through off/low/mid/high to land the
-   target hue on time. `glucose_fired`/`naoh_fired` should stay **0** on a healthy
-   reaction. If they climb, your reaction is genuinely weak (see Tuning).
+4. **Watch it work.** For `amplitude_lock`, blue should climb to `target_amplitude`,
+   the stirrer cut to 0, blue fall to `low_threshold`, and repeat — a clean swing.
+   For the hue models the mixer should move through off/low/mid/high to land the
+   target hue on time. `glucose_fired` / `naoh_fired` should stay **0** on a healthy
+   reaction; if they climb, your reaction is genuinely weak (see Tuning).
 
 That's a working closed loop. The heuristic needs no training and has no
 sim-to-real gap (it consumes only the cleaned, normalized state).

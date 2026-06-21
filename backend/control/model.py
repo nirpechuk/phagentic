@@ -9,6 +9,18 @@ without touching the rest of the loop.
 """
 from abc import ABC, abstractmethod
 from dataclasses import dataclass, field
+from typing import NamedTuple
+
+
+class ControlDecision(NamedTuple):
+    """What a GoalModel *controller* returns each decision tick.
+
+    The actuator is a continuous PWM, so controllers speak PWM directly:
+    discrete-mixer controllers (hue heuristic, MPC) emit one of the four
+    ``MIXER_PWM`` values; the period controller emits a continuous level."""
+    stirrer: int           # stirrer PWM 0..255
+    glucose: bool          # request a glucose rescue pulse this tick
+    naoh: bool             # request a NaOH (pH) pulse this tick
 
 
 @dataclass(frozen=True)
