@@ -154,7 +154,14 @@ return class Component extends DCLogic {
     this._ble=m.ble;
     // Keep a few minutes of history so the graph can zoom out to a long window;
     // the render decimates dense buffers, so the cap is generous.
-    if(this.state.running){ this._hist.push({t:+(m.t||0).toFixed(2), blue:+(m.blue||0).toFixed(4), blueEst:+(this._blueEst||0).toFixed(4), mid:0.5}); if(this._hist.length>5000) this._hist.shift(); }
+    // Restart guard: LAUNCH clears _hist locally but the backend only resets its
+    // clock (t→0) a few frames later, so stale large-t frames stream in and
+    // repopulate the buffer. The render maps X by timestamp, so those stragglers
+    // draw as a stray line shooting across the graph. Detect the clock going
+    // backwards (a reset) and drop the stale history + path cache.
+    const tNow=+(m.t||0).toFixed(2);
+    if(this._hist.length && tNow < this._hist[this._hist.length-1].t-0.5){ this._hist=[]; this._pc=null; }
+    if(this.state.running){ this._hist.push({t:tNow, blue:+(m.blue||0).toFixed(4), blueEst:+(this._blueEst||0).toFixed(4), mid:0.5}); if(this._hist.length>5000) this._hist.shift(); }
     if(this._cycles>=1) this.sayOnce('first','First full cycle complete — oscillation established.','win');
     if(this._amp>=0.6) this.sayOnce('strong','Strong swing — amplitude '+this._amp.toFixed(2)+'.','info');
     (m.narr_new||[]).forEach(n=>this.pushNarr(n.txt, n.kind));
@@ -575,7 +582,7 @@ return class Component extends DCLogic {
   // commit the target. amplitude → relay cycles blue up to the peak and back to
   // ~colourless (period emergent); heuristic/mpc → hue controllers driving to the
   // target blue. All three are GoalModel variants, so we send both params.
-  startCycling=()=>{ if(this._be){ const c=this.state.controller, model=c==='mpc'?'goal_blue_mpc':c==='heuristic'?'goal_blue':'amplitude_lock'; this._be.setModel(model); this._be.setMode('ml'); this._be.resetRun(); this._be.setModelParams({ target_amplitude:this.state.targetBlue, goal_blue:this.state.targetBlue }); } this.setState({ mode:'auto', running:true, cycling:true }); this.pushNarr(this.state.controller==='amplitude'?('▶ Launched — cycling blue '+Math.round(this.state.targetBlue*100)+'% ⇄ colourless.'):('▶ Launched — driving to target hue ('+this.state.controller+').'), 'win'); };
+  startCycling=()=>{ if(this._be){ const c=this.state.controller, model=c==='mpc'?'goal_blue_mpc':c==='heuristic'?'goal_blue':'amplitude_lock'; this._be.setModel(model); this._be.setMode('ml'); this._be.resetRun(); this._be.setModelParams({ target_amplitude:this.state.targetBlue, goal_blue:this.state.targetBlue }); } this._hist=[]; this._pc=null; this.setState({ mode:'auto', running:true, cycling:true }); this.pushNarr(this.state.controller==='amplitude'?('▶ Launched — cycling blue '+Math.round(this.state.targetBlue*100)+'% ⇄ colourless.'):('▶ Launched — driving to target hue ('+this.state.controller+').'), 'win'); };
   // Switch the AUTO controller live: GoalModel accepts a `controller` param
   // ('amplitude' | 'heuristic' | 'mpc') and swaps its planner on the fly.
   setController=(c)=>{ if(c!=='amplitude'&&c!=='heuristic'&&c!=='mpc') return; if(this._be) this._be.setModelParams({controller:c}); this.setState({ controller:c, mode:'auto' }); this.pushNarr('Controller → '+(c==='mpc'?'MPC (grey-box ODE)':c==='heuristic'?'heuristic (phase scheduler)':'amplitude (relay + PID)')+'.', 'info'); };

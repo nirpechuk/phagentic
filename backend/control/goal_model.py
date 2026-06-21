@@ -7,7 +7,9 @@ at runtime:
   ``amplitude`` — relay + PID that oscillates blue between a target peak and ~0
                   (the stirrer only drives blue up, so down is a passive fall).
   ``heuristic`` — phase-aware hue scheduler (reach a target blue by a deadline).
-  ``mpc``       — grey-box ODE planning for the hue objective.
+  ``mpc``       — same relay oscillation as ``amplitude``, but the rising stroke
+                  is planned by the fitted grey-box ODE (hits the target peak by
+                  model rollout, then the relay cuts the stirrer to fade).
 
 The operator's *hue* goal (``goal_blue`` + ``ideal_time``) lives here because it is
 shared by the hue controllers and needs run-clock bookkeeping; controller-specific
@@ -30,8 +32,11 @@ CONTROLLERS = ("amplitude", "heuristic", "mpc")
 
 def _make_controller(name: str):
     if name == "mpc":
-        from backend.control.mpc_controller import MPCController  # lazy: pulls in sim
-        return MPCController()
+        # Relay oscillator with an ODE-planned rise: hits the target peak via the
+        # fitted grey-box model, then the relay cuts the stirrer to fade. Lazy
+        # import — it pulls in the sim/ODE stack.
+        from backend.control.mpc_controller import MPCAmplitudeController
+        return MPCAmplitudeController()
     if name == "heuristic":
         return HeuristicScheduler()
     return AmplitudeController()

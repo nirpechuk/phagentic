@@ -34,9 +34,15 @@ DEFAULT_PARAMS = {
     "M0": 0.4, "O0": 0.3, "G0": 1.0, "P0": 1.0,
 }
 
-# Parameters the fitter is allowed to vary (initial latent state is fixed).
+# Parameters the fitter is allowed to vary: reaction *dynamics* only. The sensor
+# map (blue_gain / blue_offset) is a calibration measured directly from the run's
+# blue range (clear floor → blue_offset, max blue → blue_offset + blue_gain), not
+# a reaction property — leaving it free lets coordinate descent rescale the sensor
+# to mask a bad dynamics fit (it drifted to gain≈1.5 / offset≈0.2, i.e. "clear
+# reads 0.2 blue", which breaks low-blue targeting). Initial latent state is fixed
+# too — the fitter seeds M0 from the first frame instead (see fit.simulate).
 FIT_KEYS = ("k_ox", "k_red", "k_aer", "k_cons", "O_sat", "k_gc", "k_pd",
-            "dose_g", "dose_n", "blue_gain", "blue_offset")
+            "dose_g", "dose_n")
 
 
 def initial_state(p: dict) -> list:

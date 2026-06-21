@@ -130,15 +130,7 @@ class AmplitudeController:
         naoh = c.stall_risk > self.naoh_stall_thresh and c.cycle_event
 
         if self._rising:
-            err = self.target_amplitude - blue
-            self._i = clamp(self._i + self.ki * err * dt, -self.i_clamp, self.i_clamp)
-            deriv = self.kd * (err - self._last_err) / dt
-            self._last_err = err
-            raw = self.kp * err + self._i + deriv
-            out = clamp(raw, 0.0, 255.0)
-            if raw != out:                       # back-calculation anti-windup (true saturation)
-                self._i = clamp(self._i - (raw - out), -self.i_clamp, self.i_clamp)
-            out = max(out, self.rise_floor)      # stay aggressive: never coast below the floor on the way up
+            out = self._rise_stirrer(c, dt, blue)
             if blue >= self.target_amplitude - self.reach_tol or timed_out:
                 self._enter_falling(c.t)
             return ControlDecision(round(out), glucose, naoh)
@@ -157,6 +149,22 @@ class AmplitudeController:
         if blue <= self.low_threshold + self.reach_tol or timed_out:
             self._enter_rising(c.t)
         return ControlDecision(self.drive_low, glucose, naoh)
+
+    # ── rising-stroke stirrer (overridable) ───────────────────────────────────
+    def _rise_stirrer(self, c: CleanState, dt: float, blue: float) -> float:
+        """PID on blue error (0..1) → stirrer PWM (0..255), held above ``rise_floor``
+        so the climb commits to the target instead of coasting short. Subclasses
+        replace this to plan the rise differently (e.g. an ODE-based MPC) while
+        reusing the relay's flip logic and the passive/stall-rescued fall."""
+        err = self.target_amplitude - blue
+        self._i = clamp(self._i + self.ki * err * dt, -self.i_clamp, self.i_clamp)
+        deriv = self.kd * (err - self._last_err) / dt
+        self._last_err = err
+        raw = self.kp * err + self._i + deriv
+        out = clamp(raw, 0.0, 255.0)
+        if raw != out:                       # back-calculation anti-windup (true saturation)
+            self._i = clamp(self._i - (raw - out), -self.i_clamp, self.i_clamp)
+        return max(out, self.rise_floor)     # stay aggressive: never coast below the floor on the way up
 
     def _enter_falling(self, t: float) -> None:
         self._rising = False

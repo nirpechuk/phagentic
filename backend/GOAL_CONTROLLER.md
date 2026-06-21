@@ -14,9 +14,9 @@ There are two distinct control objectives, each with its own model:
 
 | Model name       | Controller | Objective  | Needs training? | When to use |
 |------------------|------------|------------|-----------------|-------------|
-| `amplitude_lock` | amplitude  | oscillate  | **No**          | Make it cycle: blue peak ⇄ colourless. Relay + PID; start here. |
+| `amplitude_lock` | amplitude  | oscillate  | **No**          | Make it cycle: blue peak ⇄ colourless. Relay + **PID** rise; start here. |
 | `goal_blue`      | heuristic  | hue        | **No**          | Reach a target blue by a deadline. Phase-aware, no deps. |
-| `goal_blue_mpc`  | MPC        | hue        | Yes (fit ODE)   | Hue only, after fitting the ODE + passing the trust gate. **Cannot oscillate** — the grey-box ODE has no limit cycle. |
+| `goal_blue_mpc`  | MPC        | oscillate  | Yes (fit ODE)   | Same peak ⇄ colourless cycle as `amplitude_lock`, but the **rising stroke is planned by the fitted grey-box ODE** (hits the target peak by model rollout, then the relay cuts the stirrer to fade). Use after fitting the ODE + passing the trust gate; the relay supplies the oscillation, the model supplies the aim. |
 
 **Mixing is the primary lever.** Glucose and NaOH pumps add liquid volume (→
 dilution/drift), so they are used *only* to rescue a collapsing oscillation
@@ -113,27 +113,67 @@ make replay RUN=runs/validate.jsonl
 Read the output:
 - `phase slips: ~0` — the estimator (the firewall) tracks reality. This should
   hold regardless of fitting.
-- `ODE blue RMSE` — must be **small (≈ ≤ 0.1)** and use **`fitted`** params (not
-  `DEFAULT`). If it's high, the ODE doesn't model your reaction well enough —
-  **stay on `goal_blue` (heuristic)** and do not deploy MPC.
+- `ODE blue RMSE: …s-horizon=…  open-loop=…` — gate on the **horizon** number
+  (re-syncs latent M to the observed blue every `FIT_WINDOW_S`, matching what the
+  MPC actually does: it re-observes each tick and only plans `horizon_s` ahead).
+  It must be **small (≈ ≤ 0.1)** and use **`fitted`** params (not `DEFAULT`); the
+  tool prints `trust gate: PASS/FAIL`. The `open-loop` number (free replay over
+  the whole run) will be much larger — that drift is expected and the MPC never
+  incurs it, so **don't gate on open-loop**. If the horizon RMSE is high, the ODE
+  doesn't model your reaction well enough — **stay on `goal_blue` (heuristic)**.
+
+> The fit minimizes that same horizon error (`backend/sim/fit.py`). Fitting the
+> free 833 s replay instead would be swamped by the long "clear" stretches and
+> collapse the blue ceiling; the sensor map (`blue_gain`/`blue_offset`) is held
+> fixed at the measured blue range rather than fit, so coordinate descent can't
+> rescale the sensor to mask a bad dynamics fit.
 
 ### Step 4 — Deploy MPC
-Only after the gate passes:
+Only after the gate passes. From the UI: pick the **MPC** controller segment and
+**Launch** (or click MPC to hot-swap the running controller). It oscillates exactly
+like `amplitude_lock` — set the peak with `target_amplitude` — but the rise is
+ODE-planned. Headless equivalents:
 ```
 make probe PROBE_ARGS='--model goal_blue_mpc'
-make probe PROBE_ARGS='--set-params {"goal_blue":0.7,"ideal_time":180}'
+make probe PROBE_ARGS='--set-params {"target_amplitude":0.5,"low_threshold":0.1}'
 ```
 Or switch live without changing models: `--set-params {"controller":"mpc"}`.
 
 ### Step 5 — Validate on hardware, conservatively
-1. **Shadow:** run a few minutes, compare MPC's mixer choices / notes against the
-   heuristic. Confirm pumps are rare.
-2. **Easy goal first:** comfortable deadline, mid-range `goal_blue`. Measure the
-   real timing error.
-3. Only then attempt tight deadlines / extreme hues.
+1. **Shadow:** run a few minutes, compare MPC's mixer choices / notes against
+   `amplitude_lock`. Confirm pumps are rare and the peak lands on `target_amplitude`.
+2. **Easy target first:** mid-range `target_amplitude` (~0.4–0.5). Watch the peak
+   accuracy and the cycle settle.
+3. Only then attempt high peaks / tight swings.
 
 The arbiter is your backstop throughout: a model exception holds all outputs, and
 pump pulses are hard-clamped to 50–5000 ms.
+
+### Step 6 — Online learning: track drift within a session (ON by default)
+The reaction weakens over a run (glucose/pH deplete → slower rise, slower fade).
+The MPC oscillator **adapts the ODE live** so its aim stays true without a refit —
+this is **on by default** whenever you select MPC, so the controller works even
+without an offline fit (it adapts from the hand-set/grounded baseline). To stop it:
+```
+make probe PROBE_ARGS='--set-params {"online_learn":false}'
+```
+What it does: buffers the recent observed-blue / applied-mixer history and, every
+`online_period_s` (30 s), runs a light coordinate-descent refit of just the rise and
+fall rates (`k_ox`, `k_red`) on that window — the same horizon objective as
+`make fit`. It's heavily guarded so it can't run away:
+- only those two rates move (sensor map + O₂ transient fixed),
+- each stays within ±40 % of the offline-fitted **baseline**,
+- updates are EMA-smoothed (`online_rate`, default 0.3 — minutes-scale tracking),
+- adaptation is **skipped on poorly-exciting windows** (no swing, or no on+off phase),
+- and it **reverts toward baseline** whenever the adapted params would predict the
+  window worse than baseline does.
+
+The live `k_ox`/`k_red` are echoed in `model_params` so you can watch them move. This
+*tracks* drift; it does not replace `make fit` — re-running that re-anchors the
+baseline (and tightens the ±40 % band around a better centre), but it's optional: the
+defaults are grounded, so MPC + online learning works out of the box. On by default
+for MPC. Knobs: `online_learn`, `online_rate`, `online_window_s` (90),
+`online_period_s` (30).
 
 ---
 

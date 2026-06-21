@@ -73,17 +73,26 @@ def main() -> None:
     print(f"stall_risk:    max={max(c.stall_risk for c in cleaned):.2f}")
 
     if args.ode:
-        from backend.sim.fit import load_run, simulate
+        from backend.sim.fit import FIT_WINDOW_S, load_run, simulate, _smooth
         from backend.sim.bluebottle_ode import DEFAULT_PARAMS
         from backend.control.mpc_controller import load_fitted_params
         run = load_run(args.log)
         p = load_fitted_params()
-        pred = simulate(run, p)
-        target = [fr["blue"] for fr in run]
-        rmse = math.sqrt(_mean([(a - b) ** 2 for a, b in zip(pred, target)]))
+        target = _smooth([fr["blue"] for fr in run])
+
+        def rmse(pred: list) -> float:
+            return math.sqrt(_mean([(a - b) ** 2 for a, b in zip(pred, target)]))
+
+        # Open-loop = free 833 s replay (drifts; the MPC never does this). Horizon =
+        # re-sync M to the observed blue every FIT_WINDOW_S, which is what the MPC
+        # relies on (it re-observes each tick, plans only horizon_s ahead). Gate on
+        # the horizon RMSE — open-loop drift is expected and not load-bearing.
+        ol = rmse(simulate(run, p))
+        hz = rmse(simulate(run, p, reseed_s=FIT_WINDOW_S, obs=target))
         which = "fitted" if p != DEFAULT_PARAMS else "DEFAULT (unfitted!)"
-        print(f"ODE blue RMSE: {rmse:.3f}  using {which} params"
-              f"{'  — gate MPC on this' if rmse > 0.1 else ''}")
+        print(f"ODE blue RMSE: {FIT_WINDOW_S:.0f}s-horizon={hz:.3f}  open-loop={ol:.3f}  using {which} params")
+        print(f"  trust gate: {'PASS' if hz <= 0.1 else 'FAIL'} (horizon RMSE "
+              f"{'≤' if hz <= 0.1 else '>'} 0.1){'' if hz <= 0.1 else ' — stay on goal_blue heuristic'}")
 
 
 def _mean(xs: list) -> float:
