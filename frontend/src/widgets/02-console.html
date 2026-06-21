@@ -4,13 +4,13 @@
   <div style="position:absolute; inset:0; display:flex; flex-direction:column; opacity:{{ consoleOpacity }}; pointer-events:{{ consolePE }}; transition:opacity .9s ease;">
 
     <header style="display:flex; align-items:center; justify-content:space-between; padding:15px 30px; border-bottom:1px solid rgba(59,55,47,.16); background:linear-gradient(rgba(247,243,235,.55),rgba(244,238,228,.32)); -webkit-backdrop-filter:blur(9px); backdrop-filter:blur(9px);">
-      <div style="display:flex; align-items:center; gap:15px;">
+      <div style="display:flex; align-items:center; gap:15px; flex-shrink:0;">
         <div onClick="{{ goHome }}" title="live sensor colour — back to home" style="cursor:pointer; width:26px; height:26px; border-radius:7px; background:{{ vesselColor }}; border:1px solid rgba(59,55,47,.28); box-shadow:inset 0 1px 3px rgba(255,255,255,.6); transition:background .12s linear;"></div>
         <div onClick="{{ goHome }}" onMouseEnter="{{ hHome }}" onMouseLeave="{{ clearHint }}" title="back to home" style="cursor:pointer; font-family:'Instrument Serif',serif; font-style:italic; font-weight:400; font-size:28px; line-height:1; background:linear-gradient(100deg,#6f8466,#847ea6 52%,#6f8499); -webkit-background-clip:text; background-clip:text; color:transparent;">Phagentic</div>
         <div style="font-family:'JetBrains Mono',monospace; font-size:13px; color:rgba(46,43,36,.55); letter-spacing:.05em; padding-left:15px; border-left:1px solid rgba(59,55,47,.2);">phage&nbsp;therapy&nbsp;·&nbsp;curing&nbsp;antibiotic&nbsp;resistance</div>
       </div>
-      <div style="display:flex; align-items:center; gap:20px;">
-        <div style="display:flex; align-items:center; gap:9px; font-family:'JetBrains Mono',monospace; font-size:14px; color:rgba(46,43,36,.72);">
+      <div style="display:flex; align-items:center; gap:20px; flex-shrink:0; margin-left:36px;">
+        <div style="display:flex; align-items:center; gap:9px; font-family:'JetBrains Mono',monospace; font-size:14px; color:rgba(46,43,36,.72); white-space:nowrap; flex-shrink:0;">
           <span style="width:8px; height:8px; border-radius:50%; background:{{ statusDot }}; animation:pulse 2s ease-in-out infinite;"></span>{{ statusTxt }}&nbsp;·&nbsp;<span style="width:9px; height:9px; border-radius:50%; background:{{ runColorVal }}; display:inline-block; vertical-align:middle; box-shadow:0 0 7px {{ runColorVal }};"></span>&nbsp;<b style="font-weight:700; color:#2e2b24;">{{ runNameTxt }}</b>&nbsp;·&nbsp;t&nbsp;{{ clockTxt }}&nbsp;·&nbsp;<span style="color:{{ sourceColor }};">{{ sourceTxt }}</span>
         </div>
         <div style="display:flex; align-items:center; gap:5px; font-family:'JetBrains Mono',monospace;">

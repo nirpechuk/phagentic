@@ -1,0 +1,5 @@
+# Backend extends the hub device layer (controller/transport/config), so the
+# hub's own deps are still required (bleak for BLE; pyserial pulled in by the
+# transport package). Install both: pip install -r hub/requirements.txt -r backend/requirements.txt
+fastapi>=0.110
+uvicorn[standard]>=0.27
