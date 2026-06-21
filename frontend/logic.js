@@ -353,22 +353,36 @@ return class Component extends DCLogic {
   // each row's panels share a similar height, and every row centred horizontally. A
   // calmer, more deliberate grid than the tight skyline pack.
   tidyLayout(panels, W){
-    const g=14, m=14, avail=Math.max(0, W-2*m);
+    const g=14, m=14, right=W-m;
     const ids=this.panelIds.filter(id=>panels[id]&&panels[id].open);
-    ids.sort((a,b)=>(panels[b].h-panels[a].h)||(panels[b].w-panels[a].w)||(this.panelIds.indexOf(a)-this.panelIds.indexOf(b)));
-    const rows=[]; let row=[], rw=0;
-    ids.forEach(id=>{ const w=panels[id].w; const add=(row.length?g:0)+w; if(row.length && rw+add>avail+0.5){ rows.push(row); row=[]; rw=0; } row.push(id); rw+=(row.length>1?g:0)+w; });
-    if(row.length) rows.push(row);
-    const P={...panels}; let y=m;
-    rows.forEach(r=>{ const totalW=r.reduce((s,id)=>s+panels[id].w,0)+g*(r.length-1); let x=m+Math.max(0,(avail-totalW)/2); let rowH=0;
-      r.forEach(id=>{ P[id]={...P[id], x:Math.round(x), y:Math.round(y)}; x+=panels[id].w+g; rowH=Math.max(rowH, panels[id].h); });
-      y+=rowH+g; });
+    // Pack greedily, but iterate in the CURRENT reading order (top→bottom, then left→right) instead
+    // of by size — so relative order is preserved (a panel that was on the left won't jump right).
+    // Each panel drops into the topmost-leftmost free slot, which fills gaps and lets a panel settle
+    // between two others rather than always starting a new row.
+    // Order by ROW BAND first, then left→right within the band. Banding (vs. raw y) keeps panels
+    // that sit in the same visual row together even when their tops differ by a few px — so the
+    // leftmost panel in a row is placed before the rightmost, preserving left↔right order.
+    const BAND=60, band=id=>Math.floor(panels[id].y/BAND);
+    ids.sort((a,b)=>(band(a)-band(b))||(panels[a].x-panels[b].x)||(panels[a].y-panels[b].y)||(this.panelIds.indexOf(a)-this.panelIds.indexOf(b)));
+    const P={...panels}, placed=[];
+    const yAt=(x,w)=>{ let y=m; placed.forEach(r=>{ if(x < r.x+r.w+g-0.01 && x+w > r.x-g+0.01) y=Math.max(y, r.y+r.h+g); }); return y; };
+    ids.forEach(id=>{ const w=P[id].w, h=P[id].h;
+      let xs=[m]; placed.forEach(r=>{ xs.push(r.x); xs.push(r.x+r.w+g); });
+      xs=Array.from(new Set(xs)).filter(x=>x>=m && x+w<=right+0.5).sort((a,b)=>a-b);
+      if(!xs.length) xs=[m];
+      let best=null;
+      // Drop into the topmost-leftmost free slot — packs up and to the left, filling gaps.
+      xs.forEach(x=>{ const y=yAt(x,w); if(!best || y<best.y-0.5 || (Math.abs(y-best.y)<=0.5 && x<best.x)) best={x,y}; });
+      P[id]={...P[id], x:Math.round(best.x), y:Math.round(best.y)}; placed.push({x:best.x, y:best.y, w, h});
+    });
     return P;
   }
-  deskW(){ if(!this._scroll) return this.state.stageW; const r=this._scroll.getBoundingClientRect(); return r.width/(this.state.uiZoom||1); }
+  deskW(){ if(!this._scroll) return this.state.stageW; return this._scroll.clientWidth/(this.state.uiZoom||1); }
   deskContentH(panels){ let mb=this.state.stageH; for(const id in panels){ const p=panels[id]; if(p.open) mb=Math.max(mb, p.y+p.h); } return mb+14; }
   scheduleAnimEnd(){ clearTimeout(this._animT); this._animT=setTimeout(()=>this.setState({animating:false}),560); }
-  measure(){ if(!this._scroll) return; const r=this._scroll.getBoundingClientRect(), z=this.state.uiZoom||1, W=r.width/z, H=r.height/z; if(W<60) return; this.setState({ stageW:W, stageH:H }); }
+  // Use clientWidth/Height (excludes scrollbars) so the stage never overflows its own scroll area
+  // by the scrollbar width — that overflow was causing a spurious horizontal scrollbar at zoom 1.
+  measure(){ if(!this._scroll) return; const z=this.state.uiZoom||1, W=this._scroll.clientWidth/z, H=this._scroll.clientHeight/z; if(W<60) return; this.setState({ stageW:W, stageH:H }); }
 
   // Forward model used for the "predicted outcome" + solver readouts (matches the sim).
   predict(stirrer){ const s=Math.max(0,Math.min(1,stirrer/255)), period=Math.max(6,60-44*s); return { halfP:period/2, period, amp:Math.max(0,Math.min(1,0.35+0.65*s)) }; }
@@ -411,6 +425,10 @@ return class Component extends DCLogic {
     window.addEventListener('mousemove',move); window.addEventListener('mouseup',up);
   }; }
   scrollRef=(el)=>{ this._scroll=el; };
+  dockRef=(el)=>{ this._dockEl=el; };
+  // Bottom dock floats in the viewport; nudge it opposite the scroll direction, then let the
+  // springy transition settle it back to 0 — a gentle bob that reads as "floating here".
+  onDeskScroll=()=>{ const el=this._dockEl; if(!el) return; const st=this._scroll?this._scroll.scrollTop:0; const d=st-(this._lastDockScroll||0); this._lastDockScroll=st; const off=Math.max(-11,Math.min(11,-d*0.5)); el.style.transform='translateY('+off.toFixed(1)+'px)'; clearTimeout(this._dockBobT); this._dockBobT=setTimeout(()=>{ if(this._dockEl) this._dockEl.style.transform='translateY(0px)'; },110); };
   chatRef=(el)=>{ this._chatEl=el; };
 
   closePanel(id){ const w=this.deskW(); this.setState(s=>{ const P={...s.panels}; P[id]={...P[id], open:false}; return { panels:this.packLayout(P, w), animating:true }; }); this.scheduleAnimEnd(); }
@@ -419,11 +437,17 @@ return class Component extends DCLogic {
   rightSlot(panels, id, W){ const g=14, m=14, p=panels[id], x=Math.max(m, W-m-p.w); let y=m;
     for(const k in panels){ const q=panels[k]; if(k===id||!q.open) continue; if(x < q.x+q.w+g-0.01 && x+p.w > q.x-g+0.01) y=Math.max(y, q.y+q.h+g); }
     return { x, y }; }
-  openPanel(id){ const w=this.deskW(); this.setState(s=>{ const P={...s.panels}; P[id]={...P[id], open:true};
-    // CALCULATOR and TEMP NOTES are tools — open them on the right, stacked below
-    // whatever is already there, without reshuffling the rest of the desk.
-    if(id==='calc'||id==='notes'){ const pos=this.rightSlot(P, id, w); P[id]={...P[id], x:pos.x, y:pos.y}; return { panels:P, animating:true }; }
-    return { panels:this.packLayout(P, w), animating:true }; }); this.scheduleAnimEnd(); }
+  // Find the first free spot for a (re)opening panel WITHOUT moving any open panel: keep its last
+  // position if still clear, else scan top-left → down for an empty slot, else fall back to centre.
+  freeSlot(panels, id, W){ const g=14, m=14, p=panels[id], w=p.w, h=p.h;
+    const others=[]; for(const k in panels){ const q=panels[k]; if(k!==id && q.open) others.push(q); }
+    const hit=(x,y)=> others.some(q=> x < q.x+q.w+g-0.01 && x+w > q.x-g+0.01 && y < q.y+q.h+g-0.01 && y+h > q.y-g+0.01);
+    if(p.x!=null && p.x>=m && p.x+w<=W-m+0.5 && !hit(p.x,p.y)) return { x:p.x, y:p.y };   // its old spot is still clear
+    const step=20;
+    for(let y=m; y<=4000; y+=step){ for(let x=m; x+w<=W-m+0.5; x+=step){ if(!hit(x,y)) return { x, y }; } }
+    return { x:Math.max(m,(W-w)/2), y:Math.max(m,(this.state.stageH-h)/2) };   // nothing clear → centre it
+  }
+  openPanel(id){ const w=this.deskW(); this.setState(s=>{ const P={...s.panels}; const pos=this.freeSlot(P, id, w); P[id]={...P[id], open:true, x:pos.x, y:pos.y, zi:++this._zc}; return { panels:P, animating:true }; }); this.scheduleAnimEnd(); }
 
   enter=()=>{ const w=this.deskW(); this.setState(s=>{ const P={...s.panels}; this.panelIds.forEach(id=>{ if(id!=='calc'&&id!=='notes') P[id]={...P[id], open:true}; }); return { onLanding:false, panels:this.consoleLayout(P, w), animating:true }; }, ()=>this.measure()); this.scheduleAnimEnd(); };
   // Cursor-tracking "shine" — a soft spotlight follows the pointer across the text. Generic:
@@ -744,7 +768,7 @@ return class Component extends DCLogic {
       landingOpacity:s.onLanding?'1':'0', landingPE:s.onLanding?'auto':'none', landingTransform:s.onLanding?'scale(1)':'scale(1.05)',
       consoleOpacity:s.onLanding?'0':'1', consolePE:s.onLanding?'none':'auto', enter:this.enter, shineMove:this.shineMove, shineReset:this.shineReset, gshineMove:this.gshineMove, gshineReset:this.gshineReset, logoLeave:this.logoLeave,
       wcOpacity:String(this.props.watercolor??0.85), blobA:pal[0], blobB:pal[1], blobC:pal[2], blobD:pal[3],
-      scrollRef:this.scrollRef, stageTransform:s.uiZoom===1?'none':'scale('+s.uiZoom+')', spacerW:(s.stageW*s.uiZoom).toFixed(0)+'px', spacerH:(contentHpx*s.uiZoom).toFixed(0)+'px', stageWpx:s.stageW.toFixed(0)+'px', stageHpx:contentHpx.toFixed(0)+'px',
+      scrollRef:this.scrollRef, dockRef:this.dockRef, onDeskScroll:this.onDeskScroll, stageTransform:s.uiZoom===1?'none':'scale('+s.uiZoom+')', spacerW:(s.stageW*s.uiZoom).toFixed(0)+'px', spacerH:(contentHpx*s.uiZoom).toFixed(0)+'px', stageWpx:s.stageW.toFixed(0)+'px', stageHpx:contentHpx.toFixed(0)+'px',
       zoomTxt:Math.round(s.uiZoom*100)+'%', zoomIn:this.zoomIn, zoomOut:this.zoomOut, zoomReset:this.zoomReset, tidyDesk:this.tidyDesk,
       toggleRun:this.toggleRun, remelt:this.remelt, bump:this.bump, manualFire:this.manualFire,
       runLabel:s.running?'PAUSE':'RUN', runLabel2:'RUN '+pad(s.runIndex), runIcon:s.running?'‖':'►',
