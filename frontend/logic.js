@@ -45,7 +45,7 @@ return class Component extends DCLogic {
     this.state={
       onLanding:true, running:true, mode:'auto', bumped:false, uiZoom:1.0, live:false,
       // setpoints (UI-owned; the in-browser control loop reads these)
-      stirrer:150, glucoseDoseMs:500, ampThreshold:40, targetHalfPeriod:25, solveMode:'period', light:255, calibTxt:'', source:'sim',
+      stirrer:150, glucoseDoseMs:500, ampThreshold:40, targetHalfPeriod:25, solveMode:'period', light:255, calibTxt:'', source:'off',
       glucoseOn:false, naohOn:false,
       settingsOpen:false, bleName:'Bioreactor', bleStatus:'', bleKnown:0,
       // measured / derived (flushed from the ingest loop ~10Hz)
@@ -69,26 +69,24 @@ return class Component extends DCLogic {
     };
     this.resetProc(0);
   }
-  componentDidMount(){ this.resetProc(this.now()); this.sim=setInterval(()=>this.tick(),80); this.flushT=setInterval(()=>this.flush(),100); this.land=setInterval(()=>this.landingTick(),32); this._onResize=()=>{ this.measure(); this.measureLanding(); }; window.addEventListener('resize',this._onResize); requestAnimationFrame(()=>{ this.measure(); this.measureLanding(); }); setTimeout(()=>{ this.measure(); this.measureLanding(); },140); this.connectBackend(); setTimeout(()=>this.bleAutoReconnect(),700); if(/console/.test(location.hash)||new URLSearchParams(location.search).get('view')==='console'){ setTimeout(()=>this.enter(),220); } }
-  componentWillUnmount(){ clearInterval(this.sim); clearInterval(this.flushT); clearInterval(this.land); window.removeEventListener('resize',this._onResize); if(this._be) this._be.close(); if(this._ble&&this._ble.connected) this._ble.disconnect(); }
+  componentDidMount(){ this.resetProc(this.now()); this.flushT=setInterval(()=>this.flush(),100); this.land=setInterval(()=>this.landingTick(),32); this._onResize=()=>{ this.measure(); this.measureLanding(); }; window.addEventListener('resize',this._onResize); requestAnimationFrame(()=>{ this.measure(); this.measureLanding(); }); setTimeout(()=>{ this.measure(); this.measureLanding(); },140); this.connectBackend(); if(/console/.test(location.hash)||new URLSearchParams(location.search).get('view')==='console'){ setTimeout(()=>this.enter(),220); } }
+  componentWillUnmount(){ clearInterval(this.flushT); clearInterval(this.land); window.removeEventListener('resize',this._onResize); if(this._be) this._be.close(); }
   goHome=()=>{ this.setState({ onLanding:true }, ()=>this.measureLanding()); };
 
-  // ---- Python hub bridge -----------------------------------------------------
-  // The hub (hub/dashboard.py) is left untouched: it streams white-balanced RGB
-  // over SSE (/stream) and accepts pin commands (/set). All oscillation analysis
-  // and the auto control loop run here in the browser; we only send actuator
-  // commands. When the hub is unreachable an in-browser simulation drives the UI.
+  // ---- headless backend bridge -----------------------------------------------
+  // The backend (backend/, FastAPI on :8080) owns the device link, oscillation
+  // analysis, the control loop and the pluggable ML model. This UI is a thin
+  // client: it renders the streamed state and sends commands back over one
+  // WebSocket. No analysis, control, or simulation runs in the browser.
   now(){ return Date.now()/1000; }
   connectBackend(){
     const be=window.PhagenticBackend; if(!be) return; this._be=be;
     be.onConfig=(cfg)=>this.resolvePins(cfg);
     be.onStatus=(up)=>{
-      if(this._ble&&this._ble.connected) return;                            // BLE takes precedence
-      this.setState({ live:up, source:up?'hub':'sim' });
-      if(up){ if(this.sim){ clearInterval(this.sim); this.sim=null; } setTimeout(()=>this.syncOutputs(),200); }  // hardware drives the stream
-      else { if(!this.sim){ this.sim=setInterval(()=>this.tick(),80); } }   // fall back to simulation
+      this.setState({ live:up });
+      this.pushNarr(up?'Backend connected.':'Backend offline — reconnecting…', up?'win':'dim');
     };
-    be.onSensor=(d)=>{ if(this._ble&&this._ble.connected) return; if(d&&typeof d.r==='number') this.ingest(d.r,d.g,d.b,(d.lux!=null?d.lux:(d.c||0)),this.now()); };
+    be.onState=(m)=>this.applyState(m);
     be.connect();
   }
   // Resolve which pin each role lives on FROM THE CONFIG, by device name — so the
@@ -104,47 +102,13 @@ return class Component extends DCLogic {
   }
   resolvePins(cfg){ this._pins=this.pinsFromConfig(cfg); }
   pinMap(cfg){ const pins=(cfg.mosfets||[]).map(m=>({pin:m.pin, mode:m.mode})); if(cfg.sensor_light&&cfg.sensor_light.pin!=null) pins.push({pin:cfg.sensor_light.pin, mode:'pwm'}); return pins; }
-  cmdSet(cmd,pinKey,value){ const pin=this._pins?this._pins[pinKey]:null; if(pin==null) return; if(this._ble&&this._ble.connected){ if(cmd==='set_pwm') this._ble.setPwm(pin,value); else this._ble.setDigital(pin,value); } else if(this._be&&this._be.connected){ this._be.set(cmd,pin,value); } }
+  // Actuator command → backend (role-based; the backend maps roles to pins).
+  cmdSet(cmd,role,value){ if(!this._be) return; if(cmd==='set_pwm') this._be.setActuator(role, Math.round(value)); else this._be.setActuator(role, !!value); }
 
-  // ---- direct Web Bluetooth link (no hub needed) ----------------------------
-  bleInit(){
-    const ble=window.PhagenticBLE; if(!ble) return null; if(this._bleInited) return ble;
-    this._bleInited=true; this._ble=ble;
-    ble.onLog=(m)=>this.setState({bleStatus:m});
-    ble.onSample=(d)=>{ if(d&&typeof d.r==='number') this.ingest(d.r,d.g,d.b,(d.lux!=null?d.lux:0),this.now()); };
-    ble.onStatus=(up)=>{
-      this.setState({ live:up, source:up?'ble':'sim', bleStatus:up?'connected':'disconnected' });
-      if(up){ if(this.sim){ clearInterval(this.sim); this.sim=null; } if(this._be) this._be.close(); }
-      else { ble.stopStream(); if(!this.sim){ this.sim=setInterval(()=>this.tick(),80); } }
-    };
-    return ble;
-  }
-  afterBleConnect=async()=>{
-    const ble=this._ble; if(!ble) return;
-    const ok=await ble.ping(); if(!ok){ this.pushNarr('Connected, but no reply to ping — is the firmware flashed?','warn'); return; }
-    this._pins=this.pinsFromConfig(this._defaultConfig);
-    await ble.configure(this.pinMap(this._defaultConfig));
-    this.syncOutputs();                                       // push current outputs (light, stirrer, pumps)
-    ble.startStream(20);
-    this.pushNarr('Bluetooth live — streaming colour at 20 Hz. Recalibrate against white for true colour.','win');
-  };
-  bleConnect=()=>{
-    const ble=this.bleInit(); if(!ble) return;
-    if(ble.connected){ ble.disconnect(); return; }
-    if(!ble.supported()){ this.pushNarr('Web Bluetooth unavailable — use Chrome/Edge over https or localhost.','warn'); this.setState({bleStatus:'unsupported'}); return; }
-    this.pushNarr('Connecting over Bluetooth…','info'); this.setState({bleStatus:'requesting…'});
-    ble.connect(this.state.bleName).then(this.afterBleConnect).catch(e=>{ const msg=(e&&e.message)||String(e); if(!/cancel/i.test(msg)) this.pushNarr('Bluetooth: '+msg,'warn'); this.setState({bleStatus:msg}); });
-  };
-  bleReconnect=()=>{
-    const ble=this.bleInit(); if(!ble||!ble.supported()) return;
-    this.setState({bleStatus:'searching known…'});
-    ble.reconnect(this.state.bleName).then(ok=>{ if(ok) this.afterBleConnect(); else { this.pushNarr('No previously-granted device — use Connect once to grant access.','dim'); this.setState({bleStatus:'no known device'}); } }).catch(e=>this.setState({bleStatus:(e&&e.message)||'failed'}));
-  };
-  bleDisconnect=()=>{ if(this._ble) this._ble.disconnect(); };
-  bleAutoReconnect(){
-    const ble=this.bleInit(); if(!ble||!ble.supported()) return;
-    ble.listKnown().then(list=>{ this.setState({bleKnown:list.length}); if(list.length){ this.pushNarr('Found a known device — reconnecting…','dim'); ble.reconnect(this.state.bleName).then(ok=>{ if(ok) this.afterBleConnect(); }).catch(()=>{}); } });
-  }
+  // ---- backend connection controls (header button + settings) ---------------
+  bleConnect=()=>{ if(!this._be) return; this._be.close(); this._be.connect(); this.pushNarr('Reconnecting to backend…','info'); };
+  bleReconnect=()=>this.bleConnect();
+  bleDisconnect=()=>{ if(this._be) this._be.close(); this.setState({ live:false }); };
   openSettings=()=>this.setState({settingsOpen:true});
   closeSettings=()=>this.setState({settingsOpen:false});
   setBleName=(e)=>this.setState({bleName:e.target.value});
@@ -169,77 +133,39 @@ return class Component extends DCLogic {
     this._runs=this._runs||[]; this._sim={phase:0, glucose:1, alk:1, last:null}; this._bump=false;
   }
 
-  // Feed one sensor sample (from hardware SSE or the simulator). Drives analysis + control.
-  ingest(r,g,b,c,now){
-    this._rgb=[Math.round(r),Math.round(g),Math.round(b)]; this._lux=Math.round(c);
-    const blue=this.blueFromRgb(r,g,b,c); this._blue=blue;
-    if(!this.state.running) return;
-    const t=Math.max(0,now-this._t0);
-    this.detect(t,blue);
-    this._hist.push({t:+t.toFixed(2), blue:+blue.toFixed(4), mid:0.5}); if(this._hist.length>600) this._hist.shift();
+  // ---- backend state ingest --------------------------------------------------
+  // The backend streams the full derived reaction state; we mirror it into
+  // instance fields (flush() copies them to React state ~10Hz) and build the
+  // rolling waveform + narration locally. No analysis or control runs here.
+  applyState(m){
+    this._t=m.t; this._blue=m.blue; if(m.rgb) this._rgb=m.rgb.slice(); this._lux=m.lux;
+    this._amp=m.amp; this._period=m.period; this._halfP=m.half_period; this._phase=m.phase;
+    this._cycles=m.cycles; this._stallRisk=m.stall_risk;
+    this._stirrerOut=m.stirrer_out; this._lightOut=m.light_out;
+    this._glucoseActive=!!m.glucose_active; this._naohActive=!!m.naoh_active;
+    this._glucosePulses=m.glucose_pulses; this._lastPulseT=m.last_pulse_t;
+    this._mode=m.mode; this._modelName=m.model_name; this._modelParams=m.model_params||{}; this._modelError=!!m.model_error;
+    this._ble=m.ble;
+    if(this.state.running){ this._hist.push({t:+(m.t||0).toFixed(2), blue:+(m.blue||0).toFixed(4), mid:0.5}); if(this._hist.length>600) this._hist.shift(); }
     if(this._cycles>=1) this.sayOnce('first','First full cycle complete — oscillation established.','win');
     if(this._amp>=0.6) this.sayOnce('strong','Strong swing — amplitude '+this._amp.toFixed(2)+'.','info');
-    if(this.state.mode==='manual') this._stirrerOut=Math.round(this.state.stirrer);
-    else this.control(now,t);
-    if(this.state.live){ this._sendAcc++; if(this._sendAcc>=4){ this._sendAcc=0; this.cmdSet('set_pwm','stirrer',this._stirrerOut); } }
+    (m.narr_new||[]).forEach(n=>this.pushNarr(n.txt, n.kind));
   }
-  // Extrema detection on the blue stream → amplitude, half-period, period, cycle count.
-  detect(t,blue){
-    this._phase=blue>=0.5?'blue':'colorless';
-    const d=blue-this._prevBlue, nd=d>1e-3?1:d<-1e-3?-1:this._dir;
-    if(this._dir===0){ this._dir=nd; }
-    else if(nd!==0&&nd!==this._dir){
-      const kind=this._dir>0?'max':'min';
-      if(kind==='max') this._lastMax=this._prevBlue; else this._lastMin=this._prevBlue;
-      this._amp=Math.max(0,Math.min(1,this._lastMax-this._lastMin));
-      if(this._extT.length){ this._halfP=t-this._extT[this._extT.length-1]; if(this._extT.length>=2) this._period=t-this._extT[this._extT.length-2]; if(kind==='min') this._cycles++; }
-      this._extT.push(t); if(this._extT.length>6) this._extT.shift();
-      this._lastExtremeT=t; this._dir=nd;
-    }
-    this._prevBlue=blue;
-  }
-  // AUTO controller: PI on stirrer to hold the target half-period + glucose pulse on decay.
-  control(now,t){
-    const hp=this._halfP;
-    if(hp>0){ const err=this.state.targetHalfPeriod-hp; this._piI=Math.max(-80,Math.min(80,this._piI+err*0.02)); this._stirrerOut=Math.round(Math.max(40,Math.min(255,150-err*4-this._piI))); }
-    if(this._cycles!==this._lastCycleSeen){ this._lastCycleSeen=this._cycles; if(this._amp<this.state.ampThreshold/100) this._lowAmp++; else this._lowAmp=0; if(this._lowAmp>=2){ this.pulseDigital('glucose',true); this._lowAmp=0; } }
-  }
-  // ---- direct device control (mirrors the hub's per-device model) ------------
-  // Hard ON/OFF for a digital pump — stays until you turn it off.
-  setDigitalOut(role,on){ this['_'+role+'Active']=on; this.cmdSet('set_digital',role,on?1:0); this.setState({ mode:'manual', [role+'On']:on }); this.pushNarr((this._names[role]||role)+(on?' — ON (held)':' — OFF'), on?'warn':'info'); }
-  // Momentary pulse for a digital pump — fires, then auto-off after the dose,
-  // unless it's being held ON.
-  pulseDigital(role,auto){
-    const ms=(role==='glucose'?this.state.glucoseDoseMs:1000);
-    this['_'+role+'Active']=true; this.cmdSet('set_digital',role,1);
-    if(role==='glucose'){ this._glucosePulses++; this._lastPulseT=+Math.max(0,this.now()-this._t0).toFixed(1); }
-    this.pushNarr((auto?'Amplitude decayed — auto ':'')+'pulse '+(this._names[role]||role)+' · '+ms+' ms', 'warn');
-    clearTimeout(this['_'+role+'PulseT']);
-    this['_'+role+'PulseT']=setTimeout(()=>{ if(!this.state[role+'On']){ this['_'+role+'Active']=false; this.cmdSet('set_digital',role,0); } }, ms);
-  }
-  // Push every current output to the hardware on (re)connect, so it matches the UI.
-  syncOutputs(){ this.cmdSet('set_pwm','stirrer',this._stirrerOut); this.cmdSet('set_pwm','light',Math.round(this.state.light)); this.cmdSet('set_digital','glucose',this.state.glucoseOn?1:0); this.cmdSet('set_digital','naoh',this.state.naohOn?1:0); }
-  // Offline simulator: a Blue Bottle limit-cycle reacting to the actuator outputs.
-  tick(){
-    if(!this.state.running) return;
-    const now=this.now(), sp=this._sim, dt=sp.last==null?0.06:Math.max(0,Math.min(0.4,now-sp.last)); sp.last=now;
-    const s=this._stirrerOut/255;
-    if(this._glucoseActive) sp.glucose=Math.min(1,sp.glucose+1.2*dt);
-    sp.glucose=Math.max(0,sp.glucose-(0.004+0.012*s)*dt);
-    if(this._naohActive) sp.alk=Math.min(1,sp.alk+0.5*dt);
-    sp.alk=Math.max(0.3,sp.alk-0.002*dt);
-    if(this._bump){ sp.glucose=Math.max(0,sp.glucose-0.25); this._bump=false; }
-    const omega=2*Math.PI/Math.max(6,60-44*s);
-    sp.phase=(sp.phase+omega*dt*(this.props.simSpeed??1))%(2*Math.PI);
-    const amp=Math.max(0,Math.min(1,sp.glucose*sp.alk*(0.35+0.65*s)));
-    const blue=Math.max(0,Math.min(1,0.5+(amp/2)*Math.sin(sp.phase)));
-    const [r,g,b]=this.rgbForBlue(blue), c=Math.round(700*(1-0.55*blue));
-    this.ingest(r,g,b,c,now);
+
+  // ---- device control → backend commands (role-based) ------------------------
+  // Hard ON/OFF hold for a digital pump. The backend holds it until told otherwise.
+  setDigitalOut(role,on){ if(this._be) this._be.setActuator(role, !!on); this.setState({ mode:'manual', [role+'On']:on }); this.pushNarr((this._names[role]||role)+(on?' — ON (held)':' — OFF'), on?'warn':'info'); }
+  // Momentary pulse — the backend owns the timer and turns the pump back off.
+  pulseDigital(role){
+    const ms=(role==='glucose'?Math.round(this.state.glucoseDoseMs):1000);
+    if(this._be) this._be.pulseActuator(role, ms);
+    this.pushNarr('pulse '+(this._names[role]||role)+' · '+ms+' ms', 'warn');
   }
   runColor(n){ return this.runPalette[(n-1)%this.runPalette.length]; }
   resetRun(now,log,note){
     if(log){ this._runs.push({n:this.state.runIndex, name:this.state.runName, cycles:this._cycles, color:this.state.runColor}); this._runs=this._runs.slice(-30); }
     this.resetProc(now);
+    if(this._be) this._be.resetRun();
     this.setState(s=>{ const n=log?s.runIndex+1:s.runIndex; return { runIndex:n, runName:log?('Run '+String(n).padStart(2,'0')):s.runName }; });
     if(note) this.pushNarr(note,'info');
   }
@@ -254,8 +180,8 @@ return class Component extends DCLogic {
   // Copy fast-changing instance fields into React state (~10Hz) so the sensor rate
   // is decoupled from render cost.
   flush(){
-    const t=Math.max(0,this.now()-this._t0);
-    this.setState({ t, blue:this._blue, rgb:this._rgb.slice(), lux:this._lux, amp:this._amp, period:this._period, halfPeriod:this._halfP, phase:this._phase, cycles:this._cycles, stallRisk:Math.max(0,Math.min(1,(t-this._lastExtremeT)/90)), stirrerOut:this._stirrerOut, glucoseActive:this._glucoseActive, naohActive:this._naohActive, glucosePulses:this._glucosePulses, lastPulseT:this._lastPulseT, hist:this._hist.slice(), narr:this._narr.slice(), runs:this._runs.slice() });
+    const src=(this._ble==='connected')?'hub':'off';
+    this.setState({ t:this._t||0, blue:this._blue, rgb:this._rgb.slice(), lux:this._lux, amp:this._amp, period:this._period, halfPeriod:this._halfP, phase:this._phase, cycles:this._cycles, stallRisk:this._stallRisk||0, stirrerOut:this._stirrerOut, glucoseActive:this._glucoseActive, naohActive:this._naohActive, glucosePulses:this._glucosePulses, lastPulseT:this._lastPulseT, hist:this._hist.slice(), narr:this._narr.slice(), runs:this._runs.slice(), mode:this._mode||this.state.mode, source:src });
   }
   componentDidUpdate(){
     if(!this._chatEl) return;
@@ -420,8 +346,9 @@ return class Component extends DCLogic {
   startKnob(param,min,max){ return (e)=>{
     e.preventDefault(); e.stopPropagation();
     const rect=e.currentTarget.getBoundingClientRect(), round=(param!=='ampThreshold');
-    this.setState({ mode:'manual' });
-    const apply=(cy)=>{ let f=1-(cy-rect.top)/rect.height; f=Math.max(0,Math.min(1,f)); let v=min+f*(max-min); if(round) v=Math.round(v); this.setState({ [param]:v }); if(param==='stirrer'){ this._stirrerOut=Math.round(v); this.cmdSet('set_pwm','stirrer',this._stirrerOut); } else if(param==='light'){ this.cmdSet('set_pwm','light',Math.round(v)); } };
+    const isActuator=(param==='stirrer'||param==='light');
+    if(isActuator) this.setState({ mode:'manual' });
+    const apply=(cy)=>{ let f=1-(cy-rect.top)/rect.height; f=Math.max(0,Math.min(1,f)); let v=min+f*(max-min); if(round) v=Math.round(v); this.setState({ [param]:v }); if(param==='stirrer'){ this._stirrerOut=Math.round(v); this.cmdSet('set_pwm','stirrer',this._stirrerOut); } else if(param==='light'){ this.cmdSet('set_pwm','light',Math.round(v)); } else if(param==='glucoseDoseMs'){ if(this._be) this._be.setModelParams({glucose_dose_ms:Math.round(v)}); } else if(param==='ampThreshold'){ if(this._be) this._be.setModelParams({amp_threshold:v/100}); } };
     apply(e.clientY);
     const move=(ev)=>apply(ev.clientY);
     const up=()=>{ window.removeEventListener('mousemove',move); window.removeEventListener('mouseup',up); document.body.style.userSelect=''; };
@@ -435,10 +362,10 @@ return class Component extends DCLogic {
   openPanel(id){ const w=this.deskW(); this.setState(s=>{ const P={...s.panels}; P[id]={...P[id], open:true}; return { panels:this.packLayout(P, w), animating:true }; }); this.scheduleAnimEnd(); }
 
   enter=()=>{ const w=this.deskW(); this.setState(s=>{ const P={...s.panels}; this.panelIds.forEach(id=>{ if(id!=='calc'&&id!=='runs') P[id]={...P[id], open:true}; }); return { onLanding:false, panels:this.packLayout(P, w), animating:true }; }, ()=>this.measure()); this.scheduleAnimEnd(); };
-  watchRace=()=>{ const w=this.deskW(); this.setState(s=>{ const keep=new Set(['reactors','swatch','world','narr']); const P={...s.panels}; this.panelIds.forEach(id=>{ P[id]={...P[id], open:keep.has(id)}; }); return { onLanding:false, running:true, mode:'auto', panels:this.packLayout(P, w), animating:true }; }, ()=>this.measure()); this.scheduleAnimEnd(); };
+  watchRace=()=>{ if(this._be) this._be.setMode('auto'); const w=this.deskW(); this.setState(s=>{ const keep=new Set(['reactors','swatch','world','narr']); const P={...s.panels}; this.panelIds.forEach(id=>{ P[id]={...P[id], open:keep.has(id)}; }); return { onLanding:false, running:true, mode:'auto', panels:this.packLayout(P, w), animating:true }; }, ()=>this.measure()); this.scheduleAnimEnd(); };
   toggleRun=()=>this.setState(s=>({ running:!s.running }));
-  setAuto=()=>this.setState({ mode:'auto' });
-  setManual=()=>this.setState({ mode:'manual' });
+  setAuto=()=>{ if(this._be) this._be.setMode('auto'); this.setState({ mode:'auto' }); };
+  setManual=()=>{ if(this._be) this._be.setMode('manual'); this.setState({ mode:'manual' }); };
   zoomIn=()=>this.setState(s=>({ uiZoom:Math.min(1.4,+(s.uiZoom+0.08).toFixed(2)) }), ()=>this.measure());
   zoomOut=()=>this.setState(s=>({ uiZoom:Math.max(0.8,+(s.uiZoom-0.08).toFixed(2)) }), ()=>this.measure());
   zoomReset=()=>this.setState({ uiZoom:1.0 }, ()=>this.measure());
@@ -471,9 +398,9 @@ return class Component extends DCLogic {
   recolorRun(i){ if(i>=0&&i<this._runs.length){ const idx=this.runPalette.indexOf(this._runs[i].color); this._runs[i]={...this._runs[i], color:this.runPalette[(idx+1)%this.runPalette.length]}; this.flush(); } }
 
   setCool=(e)=>{ const v=parseFloat(e.target.value); if(!isNaN(v)){ const cv=Math.max(0,Math.min(255,Math.round(v))); this._stirrerOut=cv; if(this.state.live) this.cmdSet('set_pwm','stirrer',cv); this.setState({ mode:'manual', stirrer:cv }); } };
-  setMoi=(e)=>{ const v=parseFloat(e.target.value); if(!isNaN(v)) this.setState({ glucoseDoseMs:Math.max(50,Math.min(2000,Math.round(v))) }); };
-  setThr=(e)=>{ const v=parseFloat(e.target.value); if(!isNaN(v)) this.setState({ ampThreshold:Math.max(5,Math.min(95,Math.round(v))) }); };
-  setTarget=(e)=>{ const v=parseFloat(e.target.value); if(!isNaN(v)) this.setState({ targetHalfPeriod:Math.max(5,Math.min(90,v)) }); };
+  setMoi=(e)=>{ const v=parseFloat(e.target.value); if(!isNaN(v)){ const cv=Math.max(50,Math.min(2000,Math.round(v))); if(this._be) this._be.setModelParams({glucose_dose_ms:cv}); this.setState({ glucoseDoseMs:cv }); } };
+  setThr=(e)=>{ const v=parseFloat(e.target.value); if(!isNaN(v)){ const cv=Math.max(5,Math.min(95,Math.round(v))); if(this._be) this._be.setModelParams({amp_threshold:cv/100}); this.setState({ ampThreshold:cv }); } };
+  setTarget=(e)=>{ const v=parseFloat(e.target.value); if(!isNaN(v)){ const cv=Math.max(5,Math.min(90,v)); if(this._be) this._be.setModelParams({target_half_period:cv}); this.setState({ targetHalfPeriod:cv }); } };
   setSolveEq=()=>this.setState({ solveMode:'period' });
   setSolveEnergy=()=>this.setState({ solveMode:'stir' });
   applySolve=()=>{ const b=this.solve(this.state.targetHalfPeriod, this.state.solveMode); this._stirrerOut=b.stir; if(this.state.live) this.cmdSet('set_pwm','stirrer',b.stir); this.setState({ mode:'manual', stirrer:b.stir }); };
@@ -483,11 +410,11 @@ return class Component extends DCLogic {
   setLight=(e)=>{ const v=parseFloat(e.target.value); if(!isNaN(v)){ const lv=Math.max(0,Math.min(255,Math.round(v))); if(this.state.live) this.cmdSet('set_pwm','light',lv); this.setState({ light:lv }); } };
   // White-balance recalibration on the hub (aim sensor at white first).
   recalibrateSensor=()=>{
-    if(this._ble&&this._ble.connected){ this.pushNarr('Recalibrating — aim the sensor at white…','info'); this.setState({calibTxt:'…'}); this._ble.calibrate().then(d=>{ const ok=!!d; this.setState({calibTxt:ok?'calibrated':'failed'}); this.pushNarr(ok?('White balance set · R×'+d.wb[0].toFixed(2)+' G×'+d.wb[1].toFixed(2)+' B×'+d.wb[2].toFixed(2)):'Calibration failed.', ok?'win':'warn'); }).catch(()=>this.setState({calibTxt:'failed'})); return; }
-    if(!(this._be&&this._be.recalibrate)) { this.pushNarr('No hub or Bluetooth connected to recalibrate.','warn'); return; }
-    this.pushNarr('Recalibrating sensor white balance…','info'); this.setState({calibTxt:'…'}); this._be.recalibrate().then(d=>{ const ok=d&&d.status==='ok'; this.setState({calibTxt:ok?'calibrated':'calib failed'}); this.pushNarr(ok?('White balance set · R×'+d.wb[0].toFixed(2)+' G×'+d.wb[1].toFixed(2)+' B×'+d.wb[2].toFixed(2)):'Recalibration failed.', ok?'win':'warn'); }).catch(()=>{ this.setState({calibTxt:'no hub'}); });
+    if(!(this._be&&this._be.recalibrate)) { this.pushNarr('No backend connected to recalibrate.','warn'); return; }
+    this.pushNarr('Recalibrating sensor white balance — aim at white…','info'); this.setState({calibTxt:'…'});
+    this._be.recalibrate().then(d=>{ const ok=d&&d.status==='ok'; this.setState({calibTxt:ok?'calibrated':'calib failed'}); this.pushNarr(ok?('White balance set · R×'+d.wb[0].toFixed(2)+' G×'+d.wb[1].toFixed(2)+' B×'+d.wb[2].toFixed(2)):'Recalibration failed.', ok?'win':'warn'); }).catch(()=>{ this.setState({calibTxt:'failed'}); });
   };
-  reloadCfg=()=>{ if(this._be&&this._be.reloadConfig){ this._be.reloadConfig().then(()=>this.pushNarr('Hub config reloaded — pin map re-pushed.','info')).catch(()=>{}); } };
+  reloadCfg=()=>{ if(this._be){ this._be.reloadConfig(); this.pushNarr('Backend config reload requested — pin map re-pushed.','info'); } };
 
   calcKeysTab=()=>this.setState({ calcTab:'keys' });
   calcFxTab=()=>this.setState({ calcTab:'fx' });
@@ -675,12 +602,12 @@ return class Component extends DCLogic {
       toggleRun:this.toggleRun, remelt:this.remelt, bump:this.bump, manualFire:this.manualFire,
       runLabel:s.running?'PAUSE':'RUN', runLabel2:'RUN '+pad(s.runIndex),
       statusTxt:s.running?'LIVE':'PAUSED', statusDot:s.running?'#6f8466':'#94762f', clockTxt:s.t.toFixed(1)+'s',
-      sourceTxt:s.source==='ble'?'⌁ BLUETOOTH':s.source==='hub'?'⬡ HARDWARE':'◌ SIMULATION', sourceColor:(s.source==='ble'||s.source==='hub')?'#566e4b':'rgba(46,43,36,.45)',
-      bleConnect:this.bleConnect, bleLabel:s.source==='ble'?'⌁ connected':'⌁ connect', bleBg:s.source==='ble'?'rgba(86,110,75,.18)':'rgba(111,132,102,.12)', bleColor:'#566e4b',
+      sourceTxt:s.source==='hub'?'⬡ HARDWARE':(s.live?'◌ NO DEVICE':'◌ OFFLINE'), sourceColor:s.source==='hub'?'#566e4b':'rgba(46,43,36,.45)',
+      bleConnect:this.bleConnect, bleLabel:s.live?'⌁ connected':'⌁ connect', bleBg:s.live?'rgba(86,110,75,.18)':'rgba(111,132,102,.12)', bleColor:'#566e4b',
       openSettings:this.openSettings, closeSettings:this.closeSettings, settingsOpen:s.settingsOpen,
       bleName:s.bleName, setBleName:this.setBleName, bleReconnect:this.bleReconnect, bleDisconnect:this.bleDisconnect,
-      bleConnected:s.source==='ble', bleStateTxt:(s.source==='ble'?'connected':(s.bleStatus||'not connected')), bleKnownTxt:s.bleKnown?(s.bleKnown+' known device'+(s.bleKnown>1?'s':'')):'no granted devices yet',
-      bleSupTxt:(window.PhagenticBLE&&window.PhagenticBLE.supported())?'':'⚠ This browser has no Web Bluetooth — use Chrome or Edge over https/localhost.',
+      bleConnected:s.live, bleStateTxt:(s.live?(s.source==='hub'?'backend + device':'backend (no device)'):'offline'), bleKnownTxt:(this._be?this._be.url:''),
+      bleSupTxt:'',
       panels:pf, dragH:this.dragH, closeH:this.closeH, stopProp:(e)=>e.stopPropagation(), dockTabs,
       animTrans:s.animating?'transform .5s cubic-bezier(.4,0,.2,1), width .5s cubic-bezier(.4,0,.2,1), height .5s cubic-bezier(.4,0,.2,1)':'none',
       vesselColor:'rgb('+s.rgb.join(',')+')',

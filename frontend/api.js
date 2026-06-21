@@ -1,121 +1,126 @@
-// PHAGENTIC — bridge to the existing Python hub (hub/dashboard.py), unchanged.
+// PHAGENTIC — bridge to the headless backend (backend/, FastAPI on :8080).
 //
-// The hub is a Flask server (default port 8080) that talks to the ESP32
-// bioreactor over BLE. The frontend adapts to it exactly as it is:
+// The backend now owns the device link, oscillation analysis, the control loop
+// and the pluggable ML model. The UI is a thin client: it renders the state the
+// backend streams and sends commands back, both over ONE WebSocket.
 //
-//   GET  /stream   Server-Sent Events, ~20 Hz:  { r, g, b, lux }
-//                  (white-balanced 0-255 swatch colour + clear-channel lux)
-//   GET  /config   { mosfets:[{name,pin,mode}], sensor_light:{pin}, sensor:{...} }
-//   POST /set      { cmd:"set_pwm"|"set_digital", pin:int, value:int }
-//   POST /recalibrate
-//   POST /reload_config
+//   ws://<host>:8080/ws
+//     server → client:  {type:"state", ...full snapshot..., narr_new:[]}
+//                        {type:"config", mosfets, sensor_light, roles, models}
+//                        {type:"ack", ref, ok, msg}
+//                        {type:"calibration", status, wb, white_c}
+//     client → server:  set_actuator {role,value} · pulse_actuator {role,ms}
+//                        set_mode {mode} · set_model {name} · set_model_params {params}
+//                        recalibrate · reload_config · reset_run · ping
 //
-// All oscillation analysis and the auto control loop live in the UI; the hub
-// stays a thin sensor + actuator relay. When the hub is unreachable the UI runs
-// a built-in simulation so the console is never blank.
+// When the socket drops the UI shows "offline" and auto-reconnects; there is no
+// in-browser simulation any more — all the brains live in the backend.
 (function () {
   "use strict";
 
-  function resolveBase() {
-    if (window.PHAGENTIC_BACKEND) return window.PHAGENTIC_BACKEND.replace(/\/$/, "");
-    var override = new URLSearchParams(location.search).get("backend");
-    if (override) return override.replace(/\/$/, "");
-    // Served from the hub itself -> same origin. Opened as a file -> default to
-    // the hub's default address.
-    if (location.protocol === "file:" || !location.host) return "http://localhost:8080";
-    return location.origin;
+  function resolveWs() {
+    var raw = null;
+    if (window.PHAGENTIC_BACKEND) raw = window.PHAGENTIC_BACKEND;
+    else {
+      var q = new URLSearchParams(location.search).get("backend");
+      if (q) raw = q;
+    }
+    if (raw) {
+      // Accept http(s):// or ws(s):// or bare host; normalise to a ws URL + /ws.
+      raw = raw.replace(/\/$/, "");
+      if (/^https?:/.test(raw)) raw = raw.replace(/^http/, "ws");
+      if (!/^wss?:/.test(raw)) raw = "ws://" + raw;
+      if (!/\/ws$/.test(raw)) raw = raw + "/ws";
+      return raw;
+    }
+    // Default: the backend's default address (UI is usually served from :5173).
+    var host = location.hostname || "localhost";
+    return "ws://" + host + ":8080/ws";
   }
 
   function Backend() {
-    this.base = resolveBase();
-    this.es = null;
+    this.url = resolveWs();
+    this.ws = null;
     this.connected = false;
     this.config = null;
-    this.onSensor = null; // ({r,g,b,lux}) => void
-    this.onConfig = null; // (layout) => void
-    this.onStatus = null; // (connected:boolean) => void
-    this._retry = null;
+    this.onState = null;   // (snapshot) => void
+    this.onConfig = null;  // (layout) => void
+    this.onStatus = null;  // (connected:boolean) => void
     this._closed = false;
+    this._retry = null;
+    this._calibWaiters = [];
   }
 
   Backend.prototype.connect = function () {
     this._closed = false;
-    this._fetchConfig();
     var self = this;
     try {
-      this.es = new EventSource(this.base + "/stream");
+      this.ws = new WebSocket(this.url);
     } catch (e) {
       this._scheduleRetry();
       return;
     }
-    this.es.onopen = function () {
-      if (!self.connected) {
-        self.connected = true;
-        if (self.onStatus) self.onStatus(true);
+    this.ws.onopen = function () {
+      self.connected = true;
+      if (self.onStatus) self.onStatus(true);
+    };
+    this.ws.onmessage = function (ev) {
+      var m;
+      try { m = JSON.parse(ev.data); } catch (e) { return; }
+      switch (m.type) {
+        case "state":  if (self.onState) self.onState(m); break;
+        case "config": self.config = m; if (self.onConfig) self.onConfig(m); break;
+        case "calibration":
+          self._calibWaiters.splice(0).forEach(function (r) { r(m); });
+          break;
+        // "ack" is currently advisory — ignored.
       }
     };
-    this.es.onmessage = function (ev) {
-      var d;
-      try { d = JSON.parse(ev.data); } catch (e) { return; }
-      // First successful message also confirms connection (onopen is not always fired first).
-      if (!self.connected) {
-        self.connected = true;
-        if (self.onStatus) self.onStatus(true);
-      }
-      if (self.onSensor) self.onSensor(d);
+    this.ws.onerror = function () { /* close handler drives reconnect */ };
+    this.ws.onclose = function () {
+      if (self.connected) { self.connected = false; if (self.onStatus) self.onStatus(false); }
+      self.ws = null;
+      if (!self._closed) self._scheduleRetry();
     };
-    this.es.onerror = function () {
-      // EventSource auto-reconnects, but surface the drop to the UI so it can
-      // fall back to simulation in the meantime.
-      if (self.connected) {
-        self.connected = false;
-        if (self.onStatus) self.onStatus(false);
-      }
-      if (self._closed) { try { self.es.close(); } catch (e) {} }
-    };
-  };
-
-  Backend.prototype._fetchConfig = function () {
-    var self = this;
-    fetch(this.base + "/config")
-      .then(function (r) { return r.ok ? r.json() : null; })
-      .then(function (cfg) { if (cfg) { self.config = cfg; if (self.onConfig) self.onConfig(cfg); } })
-      .catch(function () {});
   };
 
   Backend.prototype._scheduleRetry = function () {
     if (this._retry || this._closed) return;
     var self = this;
-    this._retry = setTimeout(function () { self._retry = null; self.connect(); }, 2000);
+    this._retry = setTimeout(function () { self._retry = null; self.connect(); }, 1500);
   };
 
-  // Actuator command -> POST /set. cmd: "set_pwm" | "set_digital".
-  Backend.prototype.set = function (cmd, pin, value) {
-    if (!this.connected || pin == null) return false;
-    fetch(this.base + "/set", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ cmd: cmd, pin: pin, value: value }),
-    }).catch(function () {});
-    return true;
+  Backend.prototype._send = function (obj) {
+    if (!this.ws || this.ws.readyState !== 1) return false;
+    try { this.ws.send(JSON.stringify(obj)); return true; } catch (e) { return false; }
   };
 
+  // role ∈ stirrer|light|glucose|naoh.  PWM roles take 0-255; pumps take bool.
+  Backend.prototype.setActuator = function (role, value) { return this._send({ type: "set_actuator", role: role, value: value }); };
+  Backend.prototype.pulseActuator = function (role, ms) { return this._send({ type: "pulse_actuator", role: role, ms: ms }); };
+  Backend.prototype.setMode = function (mode) { return this._send({ type: "set_mode", mode: mode }); };
+  Backend.prototype.setModel = function (name) { return this._send({ type: "set_model", name: name }); };
+  Backend.prototype.setModelParams = function (params) { return this._send({ type: "set_model_params", params: params }); };
+  Backend.prototype.reloadConfig = function () { return this._send({ type: "reload_config" }); };
+  Backend.prototype.resetRun = function () { return this._send({ type: "reset_run" }); };
+
+  // Resolves with the {status, wb, white_c} calibration reply.
   Backend.prototype.recalibrate = function () {
-    return fetch(this.base + "/recalibrate", { method: "POST" }).then(function (r) { return r.json(); });
-  };
-
-  // Re-read config.json on the hub and re-push the pin map (apply wiring changes live).
-  Backend.prototype.reloadConfig = function () {
     var self = this;
-    return fetch(this.base + "/reload_config", { method: "POST" })
-      .then(function (r) { return r.json(); })
-      .then(function (cfg) { if (cfg && cfg.mosfets) { self.config = cfg; if (self.onConfig) self.onConfig(cfg); } return cfg; });
+    return new Promise(function (resolve) {
+      self._calibWaiters.push(resolve);
+      if (!self._send({ type: "recalibrate" })) resolve({ status: "error" });
+      setTimeout(function () {
+        var i = self._calibWaiters.indexOf(resolve);
+        if (i >= 0) { self._calibWaiters.splice(i, 1); resolve({ status: "timeout" }); }
+      }, 16000);
+    });
   };
 
   Backend.prototype.close = function () {
     this._closed = true;
     if (this._retry) { clearTimeout(this._retry); this._retry = null; }
-    if (this.es) { try { this.es.close(); } catch (e) {} }
+    if (this.ws) { try { this.ws.close(); } catch (e) {} }
     this.connected = false;
   };
 

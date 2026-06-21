@@ -7,15 +7,17 @@ PY     := $(VENV)/bin/python
 UI_PORT ?= 5173
 
 # ────────────────────────────────────────────────────────────────────────
-.PHONY: setup run dashboard ui chat upload detect help
+.PHONY: setup run backend dashboard ui chat upload detect test help
 
 help:
 	@echo ""
+	@echo "  make backend    — headless control backend (BLE + analysis + ML + WebSocket API)"
 	@echo "  make ui         — serve the PHAGENTIC web UI + open the browser"
 	@echo "  make setup      — create Python venv and install deps"
-	@echo "  make run        — stream RGB to terminal (set BLE_DEVICE to override name)"
-	@echo "  make dashboard  — open web dashboard with color + PWM sliders"
+	@echo "  make test       — run backend unit tests (no hardware needed)"
 	@echo "  make chat       — start the ASK PHAGE assistant backend (needs ANTHROPIC_API_KEY)"
+	@echo "  make run        — [legacy] stream RGB to terminal (set BLE_DEVICE to override name)"
+	@echo "  make dashboard  — [legacy] hub web dashboard with color + PWM sliders"
 	@echo "  make upload     — compile + flash ESP32 (set PORT to override port)"
 	@echo "  make detect     — list connected serial ports / boards"
 	@echo ""
@@ -30,8 +32,18 @@ ui:
 
 setup:
 	python3 -m venv $(VENV)
-	$(VENV)/bin/pip install -r hub/requirements.txt
-	@echo "Done. Run 'make run' to start the hub."
+	$(VENV)/bin/pip install -r hub/requirements.txt -r backend/requirements.txt
+	@echo "Done. Run 'make backend' to start the headless backend."
+
+# Headless backend: owns the BLE link, oscillation analysis, the control loop,
+# and the pluggable ML model. Serves the WebSocket + /config API (default :8080).
+backend:
+	@test -f $(PY) || (echo "Run 'make setup' first."; exit 1)
+	$(PY) -m backend.app
+
+test:
+	@test -f $(PY) || (echo "Run 'make setup' first."; exit 1)
+	$(PY) -m pytest backend/tests -q
 
 run:
 	@test -f $(PY) || (echo "Run 'make setup' first."; exit 1)

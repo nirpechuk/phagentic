@@ -5,110 +5,135 @@ watches the live colour of the solution (blue ⇄ colorless), estimates the
 oscillation state — amplitude, period, phase, stall risk — and drives the
 stirrer and glucose pump to hold the rhythm.
 
+The **brains run headless in Python.** A backend process owns the device link,
+the oscillation analysis, the control loop, and a **pluggable ML model** that
+drives the reaction. The web UI is a thin client: it renders the state the
+backend streams and sends commands back, over a single WebSocket. This means the
+control loop keeps running with no browser open, and you can drop in a real
+model (sklearn / torch / an RL policy) without touching the rest of the system.
+
 ```
 phagentic/
-├── frontend/          # the web UI (this is the product UI)
-│   ├── index.html     # the console — template + control logic
-│   ├── runtime.js     # vendored React-based template renderer
-│   ├── api.js         # bridge to the Python hub (SSE + REST)
-│   └── ble.js         # direct Web Bluetooth link to the ESP32 (no hub)
-├── hub/               # Python hub: BLE/serial ↔ ESP32  (UNCHANGED)
-├── controller/        # ESP32 firmware                  (UNCHANGED)
-├── experiment.md      # the Blue Bottle experiment
-├── run.sh             # one-shot: serve the UI + open the browser
-└── Makefile           # make ui / setup / run / dashboard / upload
+├── backend/              # headless control backend  ← the live system
+│   ├── app.py            #   entrypoint: wires everything, serves uvicorn (python -m backend.app)
+│   ├── server.py         #   FastAPI: /ws (state out + commands in) + GET /config
+│   ├── hardware/         #   device.py (DeviceWorker loop), roles.py, calibration.py, _hublink.py
+│   ├── analysis/         #   detector.py (oscillation extrema), signal.py
+│   ├── control/          #   model.py (Model interface), pi_model.py, arbiter.py, registry.py
+│   ├── state/            #   store.py (shared snapshot), commands.py, events.py
+│   ├── protocol/         #   messages.py (WebSocket message vocabulary)
+│   ├── tools/ws_probe.py #   headless WebSocket probe (verify without a browser)
+│   └── tests/            #   unit tests (no hardware needed)
+├── frontend/             # the web UI — a thin WebSocket client
+│   ├── index.html        #   built console (build.js assembles it from src/)
+│   ├── api.js            #   WebSocket bridge to the backend
+│   ├── logic.js          #   UI component (rendering + command sending; no analysis)
+│   ├── runtime.js        #   vendored React-based template renderer
+│   └── src/              #   shell.html + widgets/*.html (built by build.js)
+├── hub/                  # DEPRECATED. Its device layer (controller/transport/config) is
+│                         #   reused by backend/; dashboard.py + main.py are legacy tools.
+├── controller/           # ESP32 firmware (generic pin API; pins configured at runtime)
+├── experiment.md         # the Blue Bottle experiment
+└── Makefile              # make backend / ui / setup / test / upload
 ```
 
-## Two ways to reach the hardware
+## Architecture
 
-The UI can talk to the bioreactor **either** through the Python hub **or**
-directly over Bluetooth from the browser — both untouched-backend paths:
+```
+Browser (thin client)  ──WebSocket──►  backend/  (FastAPI + uvicorn, :8080)
+  renders state                          • /ws: streams full state ~15 Hz, accepts commands
+  sends commands                         • GET /config: hardware layout + roles + models
+                                              │ shared StateStore / command queue / events
+                                              ▼
+                         DeviceWorker thread — the only thread touching the device
+                           20 Hz loop: read sensor → analyse → model decides → actuate
+                                              │ (reuses hub/ controller + BLE transport)
+                                              ▼
+                                ESP32 (controller/) over BLE — Nordic UART Service
+```
 
-1. **Via the hub** (`api.js`) — Flask SSE/REST, below. Good when the hub is
-   already running or the browser has no BLE.
-2. **Direct Web Bluetooth** (`ble.js`) — click **`⌁ connect`** in the header.
-   The browser pairs with the `Bioreactor` over the Nordic UART Service and runs
-   the hub's exact protocol (`ping` · `configure` · `set_pwm` · `set_digital` ·
-   `get_analog` · `get_rgb`) itself — **no Python needed**. It configures the
-   pins, turns on the sensor light, and polls `get_rgb` at 20 Hz. Requires Chrome
-   over **https or localhost** and a click to grant the device.
+Three modes, one active controller at a time:
 
-The header shows the active source: **`⌁ BLUETOOTH`**, **`⬡ HARDWARE`** (hub),
-or **`◌ SIMULATION`** (built-in, no hardware).
+- **manual** — the UI drives actuators directly.
+- **auto** — the built-in PI controller (PI on the stirrer to hold a target
+  half-period + a glucose pulse when amplitude decays).
+- **ml** — a pluggable `Model` from `backend/control/registry.py` drives. The
+  baseline (`pi_baseline`) is the auto controller wrapped as a model; add your
+  own by implementing `observe(state) -> Action` and registering it.
 
-The `hub/` and `controller/` are the existing backend and are **not modified by
-the UI** — the frontend adapts to the hub's existing HTTP surface.
+The model is itself controllable from the UI (mode, model selection, and tunable
+params like `target_half_period` / `amp_threshold` / `glucose_dose_ms`).
 
-## How the UI connects to the hub
+## WebSocket protocol (`ws://<host>:8080/ws`)
 
-The hub (`hub/dashboard.py`, Flask, port **8080**) already exposes everything the
-UI needs, so the frontend talks to it directly:
+Every frame is JSON `{"type": ...}`.
 
-| Hub endpoint | Used by the UI for |
+| Direction | Messages |
 |---|---|
-| `GET /stream` (SSE) | live sensor colour `{r,g,b,lux}` at ~20 Hz |
-| `GET /config` | device/pin layout → resolves Stirrer / Glucose / NaOH / Light pins |
-| `POST /set` `{cmd,pin,value}` | every actuator command (PWM + digital) |
-| `POST /recalibrate` | white-balance the sensor from the UI |
-| `POST /reload_config` | re-read `config.json` on the hub |
+| server → client | `state` (full snapshot + `narr_new[]`), `config` (layout/roles/models), `ack`, `calibration` |
+| client → server | `set_actuator {role,value}`, `pulse_actuator {role,ms}`, `set_mode {mode}`, `set_model {name}`, `set_model_params {params}`, `recalibrate`, `reload_config`, `reset_run`, `ping` |
 
-All oscillation analysis and the auto control loop (PI on the stirrer + glucose
-pulse on amplitude decay) run **in the browser**; the hub stays a thin sensor +
-actuator relay. The header shows the data source: **`⬡ HARDWARE`** when the hub
-is reachable, **`◌ SIMULATION`** when it isn't (a built-in Blue Bottle
-simulation keeps the console live with no hardware attached).
+`role` ∈ `stirrer` · `light` (PWM 0–255) and `glucose` · `naoh` (digital pumps).
+Roles resolve to physical pins from `hub/config.json` by name match, so pins can
+move in config without code changes.
 
 ### What the UI sees and controls
 
 - **Sees:** live solution colour (RGB swatch + lux), normalized blue intensity,
   oscillation waveform, amplitude, period/half-period, phase, cycle count, stall risk.
-- **Controls:** Stirrer (PWM), Glucose pump (auto trigger + manual `⟢ PULSE`,
-  dose ms), NaOH/Chloride pump (manual pulse), Sensor light (brightness),
-  auto/manual policy, target half-period solver, sensor recalibration.
+- **Controls:** Stirrer (PWM), Glucose pump (auto trigger + manual pulse, dose
+  ms), NaOH pump (manual pulse), Sensor light (brightness), manual/auto/ml mode,
+  model params, sensor recalibration, live config reload.
 
 ## Run it locally
 
-Pick whichever is handiest — all three serve `frontend/` on
-`http://localhost:5173` and open it:
-
 ```bash
-./run.sh          # bash launcher (does everything; ./run.sh 8000 for another port)
-# or
-make ui           # same thing via the Makefile (UI_PORT=8000 to override)
-# or
-cd frontend && python3 -m http.server 5173
+make setup        # one-time: venv + deps (hub/.venv) for backend + hub
+make backend      # headless backend on http://localhost:8080  (ws://localhost:8080/ws)
+make ui           # web UI on http://localhost:5173  (UI_PORT=8000 to override)
 ```
 
-Then open **http://localhost:5173/**. With no hardware connected it runs a
-built-in simulation, so the console is never blank.
-
-### Connect over Bluetooth (no hub needed)
-
-The browser talks straight to the ESP32 over Bluetooth — the Python hub does not
-need to be running.
-
-1. Power on the bioreactor (ESP32 flashed with `controller/`, advertising as
-   `Bioreactor`).
-2. Open the UI in **Chrome or Edge** at `http://localhost:5173/`
-   (Web Bluetooth needs Chrome/Edge over **https or localhost** — `localhost`
-   counts, so the local server is fine; Firefox/Safari are not supported).
-3. Click **`⌁ connect`** in the header (or **⚙ settings → Connect**) and pick
-   `Bioreactor`. The header switches to **`⌁ BLUETOOTH`** and streams the live
-   colour at 20 Hz. The first connect needs one click to grant the device;
-   after that it reconnects automatically.
+Then open **http://localhost:5173/**. The UI connects to the backend over the
+WebSocket and shows the hardware status in the header (**`⬡ HARDWARE`** when the
+ESP32 is connected, **`◌ NO DEVICE`** when the backend is up but the device
+isn't, **`◌ OFFLINE`** when the backend is unreachable — it auto-reconnects).
 
 > First load needs internet (the renderer pulls React from a CDN).
 
-### Connect via the Python hub (alternative)
+Hardware: power on the bioreactor (ESP32 flashed with `controller/`, advertising
+as `Bioreactor`). The backend scans for it on start and re-pushes the pin map +
+re-asserts outputs on every reconnect.
+
+### Verify without a browser
 
 ```bash
-make setup && make dashboard          # hub on http://localhost:8080
-make ui                               # UI on http://localhost:5173
-# open http://localhost:5173/?backend=http://localhost:8080
+make test                                   # unit tests (detector, PI model, arbiter)
+python -m backend.tools.ws_probe            # observe the live state stream
+python -m backend.tools.ws_probe --mode auto
+python -m backend.tools.ws_probe --set stirrer 200
 ```
 
-URL params:
+### URL params (frontend)
 
-- `?backend=http://host:8080` — point the UI at a specific hub (otherwise it uses
-  the page's own origin, falling back to `localhost:8080` for `file://`).
+- `?backend=ws://host:8080/ws` (or `http://host:8080`) — point the UI at a
+  specific backend. Defaults to `ws://<page-host>:8080/ws`.
 - `?view=console` — skip the landing page and open the console directly.
+
+## Legacy: the `hub/` dashboard
+
+`hub/` is deprecated as a UI but its device layer (`controller.py`, `transport/`,
+`config.py`) is the reused, single source of truth for the wire protocol — the
+backend imports it directly. The old wired tools still run if you need them:
+
+```bash
+make dashboard    # legacy Flask dashboard (hub/dashboard.py, :8080)
+make run          # legacy terminal RGB stream (hub/main.py)
+```
+
+## Configuration
+
+`hub/config.json` is the single source of truth for wiring: MOSFETs
+(`name`, `pin`, `mode` = `pwm`/`digital`) plus optional `sensor_light`. Edit it
+and either restart the backend or send `reload_config` from the UI. Set
+`BLE_DEVICE` to override the device name, `BIOREACTOR_CONFIG` to point at a
+different config file, and `PORT` to change the backend port.
