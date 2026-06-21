@@ -72,7 +72,6 @@
           <button onClick="{{ zoomReset }}" style="cursor:pointer; background:none; border:1px solid rgba(59,55,47,.25); border-radius:7px; padding:0 9px; height:27px; font:inherit; font-size:13px; color:rgba(46,43,36,.72);" style-hover="background:rgba(59,55,47,.08);">{{ zoomTxt }}</button>
           <button onClick="{{ zoomIn }}" title="Larger" style="cursor:pointer; background:none; border:1px solid rgba(59,55,47,.25); border-radius:7px; width:29px; height:27px; font:inherit; font-size:15px; color:#2e2b24;" style-hover="background:rgba(59,55,47,.08);">A+</button>
         </div>
-        <button onClick="{{ bleConnect }}" onMouseEnter="{{ hConnect }}" onMouseLeave="{{ clearHint }}" style="cursor:pointer; background:none; border:none; border-bottom:1.5px solid transparent; padding:4px 1px; font-family:'JetBrains Mono',monospace; font-size:14px; letter-spacing:.05em; color:#566e4b;" style-hover="border-bottom-color:#2e2b24; color:#2e2b24;">{{ bleLabel }}</button>
         <button onClick="{{ tidyDesk }}" onMouseEnter="{{ hTidy }}" onMouseLeave="{{ clearHint }}" style="cursor:pointer; background:none; border:none; border-bottom:1.5px solid transparent; padding:4px 1px; font-family:'JetBrains Mono',monospace; font-size:14px; letter-spacing:.05em; color:rgba(46,43,36,.72);" style-hover="color:#2e2b24; border-bottom-color:#2e2b24;">✦ tidy desk</button>
         <div style="display:flex; align-items:center; gap:5px; font-family:'JetBrains Mono',monospace;">
           <button onClick="{{ toggleRun }}" onMouseEnter="{{ hPause }}" onMouseLeave="{{ clearHint }}" title="play / pause" style="cursor:pointer; background:none; border:1px solid rgba(59,55,47,.25); border-radius:7px; width:27px; height:27px; font:inherit; font-size:13px; color:#2e2b24; display:inline-flex; align-items:center; justify-content:center;" style-hover="background:rgba(59,55,47,.08);">{{ runIcon }}</button>
@@ -91,6 +90,62 @@
     <div ref="{{ scrollRef }}" style="position:absolute; inset:0; overflow:auto; z-index:1;">
     <div style="position:relative; width:{{ spacerW }}; height:{{ spacerH }};">
     <div style="position:absolute; left:0; top:0; width:{{ stageWpx }}; height:{{ stageHpx }}; transform:{{ stageTransform }}; transform-origin:0 0;">
+
+      <!-- ACTUATOR STATUS (read-only — shows what the controller is doing) -->
+      <sc-if value="{{ panels.actuators.open }}" hint-placeholder-val="{{ true }}">
+      <div style="position:absolute; left:0; top:0; width:{{ panels.actuators.w }}; height:{{ panels.actuators.h }}; transform:{{ panels.actuators.tf }}; z-index:{{ panels.actuators.z }}; border-radius:20px; background:linear-gradient(150deg, rgba(254,251,246,.72), rgba(247,242,233,.5)); -webkit-backdrop-filter:blur(14px) saturate(1.3); backdrop-filter:blur(14px) saturate(1.3); border:1px solid rgba(255,255,255,.62); box-shadow:0 24px 50px -26px rgba(70,60,48,.5), inset 0 1px 0 rgba(255,255,255,.85); display:flex; flex-direction:column; overflow:hidden; transition:{{ animTrans }};">
+        <div onMouseDown="{{ panels.actuators.resize }}" title="drag to resize" style="position:absolute; right:2px; bottom:2px; width:18px; height:18px; cursor:nwse-resize; z-index:6; border-right:2px solid rgba(59,55,47,.3); border-bottom:2px solid rgba(59,55,47,.3); border-bottom-right-radius:8px;"></div>
+        <div onMouseDown="{{ dragH.actuators }}" style="cursor:grab; padding:13px 18px 9px; display:flex; align-items:center; justify-content:space-between;">
+          <span style="font-family:'JetBrains Mono',monospace; font-size:12.5px; letter-spacing:.18em; color:rgba(46,43,36,.55);">ACTUATORS</span>
+          <div style="display:flex; align-items:center; gap:10px;">
+            <span style="font-family:'JetBrains Mono',monospace; font-size:11px; letter-spacing:.08em; color:{{ actPolicyColor }};">{{ actPolicyTxt }}</span>
+            <button onMouseDown="{{ stopProp }}" onClick="{{ closeH.actuators }}" style="cursor:pointer; background:none; border:none; color:rgba(46,43,36,.4); font-size:15px; line-height:1; padding:2px 4px;" style-hover="color:#2e2b24;">×</button>
+          </div>
+        </div>
+        <div style="flex:1; min-height:0; overflow-y:auto; padding:6px 18px 16px; display:flex; flex-direction:column; gap:14px;">
+
+          <!-- STIRRER (PWM) -->
+          <div>
+            <div style="display:flex; justify-content:space-between; align-items:baseline; font-family:'JetBrains Mono',monospace; margin-bottom:6px;">
+              <span style="font-size:12px; color:rgba(46,43,36,.7);">{{ stirName }} <span style="opacity:.5; font-size:9.5px;">mixer</span></span>
+              <span><b style="font-size:13px; font-weight:700; color:#5f7fb0; letter-spacing:.08em;">{{ actStirLevel }}</b> <span style="font-size:13px; font-weight:600; color:#2e2b24;">{{ actStirPct }}</span></span>
+            </div>
+            <div style="position:relative; height:10px; border-radius:6px; overflow:hidden; background:rgba(59,55,47,.1);">
+              <div style="position:absolute; left:0; top:0; bottom:0; width:{{ actStirW }}; background:linear-gradient(90deg,#7aa0d8,#5f7fb0); box-shadow:0 0 12px rgba(95,127,176,.5); transition:width .25s ease;"></div>
+            </div>
+          </div>
+
+          <!-- LIGHT (PWM) -->
+          <div>
+            <div style="display:flex; justify-content:space-between; align-items:baseline; font-family:'JetBrains Mono',monospace; margin-bottom:6px;">
+              <span style="font-size:12px; color:rgba(46,43,36,.7);">{{ lightName }} <span style="opacity:.5; font-size:9.5px;">sensor light</span></span>
+              <span style="font-size:13px; font-weight:600; color:#2e2b24;">{{ actLightPct }}</span>
+            </div>
+            <div style="position:relative; height:10px; border-radius:6px; overflow:hidden; background:rgba(59,55,47,.1);">
+              <div style="position:absolute; left:0; top:0; bottom:0; width:{{ actLightW }}; background:linear-gradient(90deg,#e7c96b,#b9923a); box-shadow:0 0 12px rgba(231,201,107,.45); transition:width .25s ease;"></div>
+            </div>
+          </div>
+
+          <!-- PUMPS (digital) -->
+          <div style="display:flex; gap:12px;">
+            <div style="flex:1; display:flex; align-items:center; justify-content:space-between; padding:11px 13px; border-radius:12px; background:{{ actGluBg }}; border:1px solid rgba(59,55,47,.16); transition:background .2s ease;">
+              <span style="font-family:'JetBrains Mono',monospace; font-size:11.5px; color:{{ actGluColor }};">{{ gluName }}</span>
+              <b style="font-family:'JetBrains Mono',monospace; font-size:14px; font-weight:700; letter-spacing:.1em; color:{{ actGluColor }};">{{ actGluTxt }}</b>
+            </div>
+            <div style="flex:1; display:flex; align-items:center; justify-content:space-between; padding:11px 13px; border-radius:12px; background:{{ actNaohBg }}; border:1px solid rgba(59,55,47,.16); transition:background .2s ease;">
+              <span style="font-family:'JetBrains Mono',monospace; font-size:11.5px; color:{{ actNaohColor }};">{{ naohName }}</span>
+              <b style="font-family:'JetBrains Mono',monospace; font-size:14px; font-weight:700; letter-spacing:.1em; color:{{ actNaohColor }};">{{ actNaohTxt }}</b>
+            </div>
+          </div>
+
+          <div style="border-top:1px solid rgba(59,55,47,.12); padding-top:10px; display:flex; justify-content:space-between; font-family:'JetBrains Mono',monospace; font-size:11.5px; color:rgba(46,43,36,.55);">
+            <span>glucose pulses this run</span><b style="font-weight:700; color:#2e2b24;">{{ actGluPulses }}</b>
+          </div>
+
+        </div>
+      </div>
+      </sc-if>
+
 
       <!-- COLOUR LOG -->
       <sc-if value="{{ panels.swatch.open }}" hint-placeholder-val="{{ true }}">
@@ -241,27 +296,7 @@
               <input type="number" step="10" value="{{ targetTimeVal }}" onMouseDown="{{ stopProp }}" onInput="{{ setTargetTime }}" style="width:100%; text-align:center; background:rgba(255,255,255,.5); border:1px solid rgba(59,55,47,.2); border-radius:8px; padding:7px; font-family:'JetBrains Mono',monospace; font-size:14px; color:#2e2b24; outline:none;" />
             </div>
           </div>
-          <div style="border-top:1px solid rgba(59,55,47,.12); padding-top:12px; font-family:'JetBrains Mono',monospace; font-size:11px; letter-spacing:.14em; color:rgba(46,43,36,.5);">AUTO TUNING · dose · trigger</div>
-          <div style="display:flex; justify-content:space-around;">
-            <div style="display:flex; flex-direction:column; align-items:center; gap:6px;">
-              <span style="font-family:'JetBrains Mono',monospace; font-size:12px; color:rgba(46,43,36,.6); text-align:center;">DOSE ms<br><span style="opacity:.5; font-size:9.5px;">glucose pulse</span></span>
-              <div onMouseDown="{{ knobMoi }}" title="drag up / down" style="position:relative; width:36px; height:100px; border-radius:12px; cursor:ns-resize; overflow:hidden; background:linear-gradient(180deg, rgba(255,255,255,.42), rgba(224,216,200,.22)); border:1px solid rgba(59,55,47,.22); box-shadow:inset 0 2px 5px rgba(255,255,255,.7), 0 6px 14px -7px rgba(70,60,48,.45);">
-                <div style="position:absolute; inset:0; background:repeating-linear-gradient(0deg, rgba(59,55,47,.07) 0 1px, transparent 1px 13px); pointer-events:none;"></div>
-                <div style="position:absolute; left:0; right:0; bottom:0; height:{{ gluFill }}; background:linear-gradient(180deg, #5f7fb0, #6f8466); box-shadow:0 -2px 16px rgba(95,127,176,.55); transition:height .1s ease;"></div>
-                <div style="position:absolute; left:0; right:0; bottom:calc({{ gluFill }} - 1.5px); height:3px; background:rgba(255,255,255,.9); box-shadow:0 0 8px rgba(255,255,255,.85); pointer-events:none;"></div>
-              </div>
-              <input type="number" step="1" value="{{ moiVal }}" onMouseDown="{{ stopProp }}" onInput="{{ setMoi }}" style="width:62px; text-align:center; background:rgba(255,255,255,.45); border:1px solid rgba(59,55,47,.2); border-radius:7px; padding:4px; font-family:'JetBrains Mono',monospace; font-size:13px; color:#2e2b24; outline:none;" />
-            </div>
-            <div style="display:flex; flex-direction:column; align-items:center; gap:6px;">
-              <span style="font-family:'JetBrains Mono',monospace; font-size:12px; color:rgba(46,43,36,.6); text-align:center;">AUTO @ %<br><span style="opacity:.5; font-size:9.5px;">amp trigger</span></span>
-              <div onMouseDown="{{ knobThr }}" title="drag up / down" style="position:relative; width:36px; height:100px; border-radius:12px; cursor:ns-resize; overflow:hidden; background:linear-gradient(180deg, rgba(255,255,255,.42), rgba(224,216,200,.22)); border:1px solid rgba(59,55,47,.22); box-shadow:inset 0 2px 5px rgba(255,255,255,.7), 0 6px 14px -7px rgba(70,60,48,.45);">
-                <div style="position:absolute; inset:0; background:repeating-linear-gradient(0deg, rgba(59,55,47,.07) 0 1px, transparent 1px 13px); pointer-events:none;"></div>
-                <div style="position:absolute; left:0; right:0; bottom:0; height:{{ ampFill }}; background:linear-gradient(180deg, #5f7fb0, #6f8466); box-shadow:0 -2px 16px rgba(95,127,176,.55); transition:height .1s ease;"></div>
-                <div style="position:absolute; left:0; right:0; bottom:calc({{ ampFill }} - 1.5px); height:3px; background:rgba(255,255,255,.9); box-shadow:0 0 8px rgba(255,255,255,.85); pointer-events:none;"></div>
-              </div>
-              <input type="number" step="1" value="{{ thrVal }}" onMouseDown="{{ stopProp }}" onInput="{{ setThr }}" style="width:62px; text-align:center; background:rgba(255,255,255,.45); border:1px solid rgba(59,55,47,.2); border-radius:7px; padding:4px; font-family:'JetBrains Mono',monospace; font-size:13px; color:#2e2b24; outline:none;" />
-            </div>
-          </div>
+          <button onMouseDown="{{ stopProp }}" onClick="{{ startCycling }}" title="reset the clock and start driving toward the target hue" style="cursor:pointer; width:100%; margin-top:2px; background:#6f8466; border:none; border-radius:11px; padding:12px; font-family:'JetBrains Mono',monospace; font-size:13.5px; font-weight:700; letter-spacing:.12em; color:#fbf8f2; box-shadow:0 8px 18px -10px rgba(86,110,75,.85);" style-hover="background:#566e4b;">▶ LAUNCH · START CYCLING</button>
           </sc-if>
           <sc-if value="{{ isManual }}" hint-placeholder-val="{{ false }}">
           <div>
@@ -305,31 +340,6 @@
               </div>
             </div>
             <button onMouseDown="{{ stopProp }}" onClick="{{ recalibrateSensor }}" title="Aim the sensor at white first" style="cursor:pointer; width:100%; margin-top:11px; border:1px solid rgba(59,55,47,.22); border-radius:9px; padding:8px; font-family:'JetBrains Mono',monospace; font-size:12.5px; background:rgba(255,255,255,.4); color:rgba(46,43,36,.8);" style-hover="border-color:rgba(59,55,47,.4);">recalibrate sensor (aim at white) {{ calibTxt }}</button>
-          </div>
-          </sc-if>
-          <sc-if value="{{ isAuto }}" hint-placeholder-val="{{ true }}">
-          <div style="border-top:1px solid rgba(59,55,47,.12); padding-top:11px;">
-            <div style="font-family:'JetBrains Mono',monospace; font-size:12px; color:rgba(46,43,36,.55); margin-bottom:8px;">PREDICTED OUTCOME · world model</div>
-            <div style="display:grid; grid-template-columns:1fr 1fr 1fr 1fr; gap:10px; font-family:'JetBrains Mono',monospace;">
-              <div><div style="font-size:11.5px; color:rgba(46,43,36,.52);">half-p</div><div style="font-size:17px; font-weight:600; margin-top:3px; color:#2e2b24;">{{ predFireTxt }}</div></div>
-              <div><div style="font-size:11.5px; color:rgba(46,43,36,.52);">amp</div><div style="font-size:17px; font-weight:600; margin-top:3px; color:#2e2b24;">{{ predSolidTxt }}</div></div>
-              <div><div style="font-size:11.5px; color:rgba(46,43,36,.52);">period</div><div style="font-size:17px; font-weight:600; margin-top:3px; color:#566e4b;">{{ predYTxt }}</div></div>
-              <div><div style="font-size:11.5px; color:rgba(46,43,36,.52);">stall</div><div style="font-size:17px; font-weight:600; margin-top:3px; color:{{ predHzColor }};">{{ predHzTxt }}</div></div>
-            </div>
-          </div>
-          <div style="border-top:1px solid rgba(59,55,47,.12); padding-top:11px;">
-            <div style="display:flex; align-items:center; justify-content:space-between; margin-bottom:9px;">
-              <span style="font-family:'JetBrains Mono',monospace; font-size:12px; color:rgba(46,43,36,.55);">SOLVE FOR HALF-PERIOD</span>
-              <div style="display:flex; font-family:'JetBrains Mono',monospace; font-size:12px; border:1px solid rgba(59,55,47,.2); border-radius:7px; overflow:hidden;">
-                <button onMouseDown="{{ stopProp }}" onClick="{{ setSolveEq }}" style="cursor:pointer; border:none; padding:4px 9px; font:inherit; background:{{ solveEqBg }}; color:{{ solveEqColor }};">hold period</button>
-                <button onMouseDown="{{ stopProp }}" onClick="{{ setSolveEnergy }}" style="cursor:pointer; border:none; padding:4px 9px; font:inherit; background:{{ solveEnBg }}; color:{{ solveEnColor }};">min stir</button>
-              </div>
-            </div>
-            <div style="display:flex; align-items:center; gap:10px;">
-              <input type="number" step="50" value="{{ targetVal }}" onMouseDown="{{ stopProp }}" onInput="{{ setTarget }}" style="width:78px; text-align:center; background:rgba(255,255,255,.5); border:1px solid rgba(59,55,47,.2); border-radius:8px; padding:7px; font-family:'JetBrains Mono',monospace; font-size:14px; color:#2e2b24; outline:none;" />
-              <span style="flex:1; font-size:13.5px; line-height:1.4; color:rgba(46,43,36,.8);">{{ solveTxt }}</span>
-              <button onMouseDown="{{ stopProp }}" onClick="{{ applySolve }}" style="cursor:pointer; flex:none; background:#6f8466; border:none; border-radius:8px; padding:7px 13px; font-family:'JetBrains Mono',monospace; font-size:13.5px; font-weight:600; color:#fbf8f2;" style-hover="background:#566e4b;">apply</button>
-            </div>
           </div>
           </sc-if>
         </div>

@@ -29,10 +29,10 @@ return class Component extends DCLogic {
       {id:'cycles', name:'Cycles per run', expr:'N = (R·60) ÷ T', desc:'How many oscillations fit a run of a given length.', fields:[['Run length','R','min'],['Period','P','s']], fn:v=>v.P?(v.R*60)/v.P:0, unit:'cycles', dp:0},
       {id:'temp', name:'Temperature  °C ⇄ °F', expr:'°F = °C·9/5 + 32', desc:'Convert between Celsius and Fahrenheit — type in either box.', converter:true},
     ];
-    this.panelIds=['swatch','world','narr','manual','calc','ask','runs','notes'];
-    this.labels={swatch:'COLOUR LOG', world:'OSCILLATION', narr:'NARRATION', manual:'CONSOLE', calc:'CALCULATOR', ask:'ASK PHAGE', runs:'RUNS', notes:'TEMP NOTES'};
+    this.panelIds=['swatch','world','narr','manual','calc','ask','runs','notes','actuators'];
+    this.labels={swatch:'COLOUR LOG', world:'OSCILLATION', narr:'NARRATION', manual:'CONSOLE', calc:'CALCULATOR', ask:'ASK PHAGE', runs:'RUNS', notes:'TEMP NOTES', actuators:'ACTUATORS'};
     // starting size per panel (px, design space); user-resizable from the corner.
-    this._size={ swatch:[350,460], world:[620,420], narr:[360,420], manual:[560,640], calc:[360,430], ask:[400,420], runs:[350,400], notes:[340,420] };
+    this._size={ swatch:[350,460], world:[620,420], narr:[360,420], manual:[560,640], calc:[360,430], ask:[400,420], runs:[350,400], notes:[340,420], actuators:[360,300] };
     this.dragH={}; this.closeH={}; this.openH={}; this.resizeH={};
     this.panelIds.forEach(id=>{ this.dragH[id]=this.startDrag(id); this.closeH[id]=()=>this.closePanel(id); this.openH[id]=()=>this.openPanel(id); this.resizeH[id]=this.startResize(id); });
     this.knobCool=this.startKnob('stirrer',0,255); this.knobMoi=this.startKnob('glucoseDoseMs',50,2000); this.knobThr=this.startKnob('ampThreshold',5,95); this.knobLight=this.startKnob('light',0,255);
@@ -53,10 +53,10 @@ return class Component extends DCLogic {
       runName:'Run 01', runColor:'#6f8466', colorOpen:false, hint:'', hintX:0, hintY:0,
       t:0, runIndex:1, blue:0.5, rgb:[228,226,214], lux:0,
       amp:0, period:0, halfPeriod:0, phase:'colorless', cycles:0, stallRisk:0,
-      stirrerOut:150, glucoseActive:false, naohActive:false, glucosePulses:0, lastPulseT:null,
+      stirrerOut:150, lightOut:255, glucoseActive:false, naohActive:false, glucosePulses:0, lastPulseT:null,
       hist:[],
       narr:[{txt:'System online. Awaiting first blue↔colorless swing.', kind:'info'}],
-      panels:{ swatch:mk(true,'swatch'), world:mk(true,'world'), narr:mk(true,'narr'), manual:mk(true,'manual'), calc:mk(false,'calc'), ask:mk(true,'ask'), runs:mk(true,'runs'), notes:mk(false,'notes') },
+      panels:{ swatch:mk(true,'swatch'), world:mk(true,'world'), narr:mk(true,'narr'), manual:mk(true,'manual'), calc:mk(false,'calc'), ask:mk(true,'ask'), runs:mk(true,'runs'), notes:mk(false,'notes'), actuators:mk(true,'actuators') },
       drag:null, resize:null, stageW:1304, stageH:740,
       calc:{display:'0', acc:null, op:null, fresh:true}, calcTab:'keys',
       eq:{ amp:{}, period:{}, freq:{}, blue:{}, stir:{}, kla:{}, dose:{}, cycles:{}, temp:{} }, eqSel:null,
@@ -130,7 +130,7 @@ return class Component extends DCLogic {
     this._prevBlue=0.5; this._dir=0; this._lastMax=0.5; this._lastMin=0.5; this._extT=[];
     this._amp=0; this._period=0; this._halfP=0; this._cycles=0; this._phase='colorless'; this._lastExtremeT=0;
     this._piI=0; this._lowAmp=0; this._lastCycleSeen=0; this._sendAcc=0;
-    this._stirrerOut=(this.state&&this.state.stirrer)||150; this._glucoseActive=false; this._naohActive=false; this._glucosePulses=0; this._lastPulseT=null; this._pulseUntil=0; this._naohUntil=0;
+    this._stirrerOut=(this.state&&this.state.stirrer)||150; this._lightOut=(this.state&&this.state.light)||255; this._glucoseActive=false; this._naohActive=false; this._glucosePulses=0; this._lastPulseT=null; this._pulseUntil=0; this._naohUntil=0;
     this._hist=[]; this._narr=[{txt:'System online. Awaiting first blue↔colorless swing.', kind:'info'}];
     this._runs=this._runs||[]; this._sim={phase:0, glucose:1, alk:1, last:null}; this._bump=false;
   }
@@ -184,7 +184,7 @@ return class Component extends DCLogic {
   flush(){
     // device/bluetooth status comes straight from the backend's `ble` field.
     const b=this._ble; const src=(b===true||(typeof b==='string'&&/conn|on|ready|live|true/i.test(b)))?'hub':'off';
-    this.setState({ t:this._t||0, blue:this._blue, rgb:this._rgb.slice(), lux:this._lux, amp:this._amp, period:this._period, halfPeriod:this._halfP, phase:this._phase, cycles:this._cycles, stallRisk:this._stallRisk||0, stirrerOut:this._stirrerOut, glucoseActive:this._glucoseActive, naohActive:this._naohActive, glucosePulses:this._glucosePulses, lastPulseT:this._lastPulseT, hist:this._hist.slice(), narr:this._narr.slice(), runs:this._runs.slice(), mode:this._mode||this.state.mode, source:src });
+    this.setState({ t:this._t||0, blue:this._blue, rgb:this._rgb.slice(), lux:this._lux, amp:this._amp, period:this._period, halfPeriod:this._halfP, phase:this._phase, cycles:this._cycles, stallRisk:this._stallRisk||0, stirrerOut:this._stirrerOut, lightOut:this._lightOut, glucoseActive:this._glucoseActive, naohActive:this._naohActive, glucosePulses:this._glucosePulses, lastPulseT:this._lastPulseT, hist:this._hist.slice(), narr:this._narr.slice(), runs:this._runs.slice(), mode:this._mode||this.state.mode, source:src });
   }
   componentDidUpdate(){
     if(!this._chatEl) return;
@@ -368,9 +368,11 @@ return class Component extends DCLogic {
   openPanel(id){ const w=this.deskW(); this.setState(s=>{ const P={...s.panels}; P[id]={...P[id], open:true}; return { panels:this.packLayout(P, w), animating:true }; }); this.scheduleAnimEnd(); }
 
   enter=()=>{ const w=this.deskW(); this.setState(s=>{ const P={...s.panels}; this.panelIds.forEach(id=>{ if(id!=='calc'&&id!=='notes') P[id]={...P[id], open:true}; }); return { onLanding:false, panels:this.packLayout(P, w), animating:true }; }, ()=>this.measure()); this.scheduleAnimEnd(); };
-  watchRace=()=>{ if(this._be) this._be.setMode('auto'); const w=this.deskW(); this.setState(s=>{ const keep=new Set(['reactors','swatch','world','narr']); const P={...s.panels}; this.panelIds.forEach(id=>{ P[id]={...P[id], open:keep.has(id)}; }); return { onLanding:false, running:true, mode:'auto', panels:this.packLayout(P, w), animating:true }; }, ()=>this.measure()); this.scheduleAnimEnd(); };
+  watchRace=()=>{ if(this._be){ this._be.setModel('goal_blue'); this._be.setMode('ml'); } const w=this.deskW(); this.setState(s=>{ const keep=new Set(['swatch','world','narr','manual','actuators']); const P={...s.panels}; this.panelIds.forEach(id=>{ P[id]={...P[id], open:keep.has(id)}; }); return { onLanding:false, running:true, mode:'auto', panels:this.packLayout(P, w), animating:true }; }, ()=>this.measure()); this.scheduleAnimEnd(); };
   toggleRun=()=>this.setState(s=>({ running:!s.running }));
-  setAuto=()=>{ if(this._be) this._be.setMode('auto'); this.setState({ mode:'auto' }); };
+  // AUTO = the goal-seeking model. Select goal_blue and enter ML mode so the
+  // target-hue/time inputs actually drive the controller (backend/control/goal_model.py).
+  setAuto=()=>{ if(this._be){ this._be.setModel('goal_blue'); this._be.setMode('ml'); } this.setState({ mode:'auto' }); };
   setManual=()=>{ if(this._be) this._be.setMode('manual'); this.setState({ mode:'manual' }); };
   zoomIn=()=>this.setState(s=>({ uiZoom:Math.min(1.4,+(s.uiZoom+0.08).toFixed(2)) }), ()=>this.measure());
   zoomOut=()=>this.setState(s=>({ uiZoom:Math.max(0.8,+(s.uiZoom-0.08).toFixed(2)) }), ()=>this.measure());
@@ -417,6 +419,10 @@ return class Component extends DCLogic {
   // GoalModel params (backend/control/goal_model.py): goal_blue 0..1, ideal_time abs seconds.
   setTargetBlue=(e)=>{ const v=parseFloat(e.target.value); if(!isNaN(v)){ const cv=Math.max(0,Math.min(1,v/100)); if(this._be) this._be.setModelParams({goal_blue:cv}); this.setState({ targetBlue:cv, mode:'auto' }); } };
   setTargetTime=(e)=>{ const v=parseFloat(e.target.value); if(!isNaN(v)){ const cv=Math.max(0,v); if(this._be) this._be.setModelParams({ideal_time:cv}); this.setState({ targetTime:cv }); } };
+  // Launch: engage the goal model, zero the run clock, and commit the goal.
+  // ideal_time is absolute seconds since run start, so after the reset it reads
+  // as "reach target blue this many seconds from launch".
+  startCycling=()=>{ if(this._be){ this._be.setModel('goal_blue'); this._be.setMode('ml'); this._be.resetRun(); this._be.setModelParams({ goal_blue:this.state.targetBlue, ideal_time:this.state.targetTime }); } this.setState({ mode:'auto', running:true }); };
   setSolveEq=()=>this.setState({ solveMode:'period' });
   setSolveEnergy=()=>this.setState({ solveMode:'stir' });
   applySolve=()=>{ const b=this.solve(this.state.targetHalfPeriod, this.state.solveMode); this._stirrerOut=b.stir; if(this.state.live) this.cmdSet('set_pwm','stirrer',b.stir); this.setState({ mode:'manual', stirrer:b.stir }); };
@@ -642,8 +648,16 @@ return class Component extends DCLogic {
       telemetry:[{k:'BLUE', v:Math.round(s.blue*100)+'%', c:'#566e4b'},{k:'AMP', v:Math.round(s.amp*100)+'%', c:'#2e2b24'},{k:'PERIOD', v:s.period.toFixed(1)+'s', c:'#94762f'},{k:'CYCLES', v:String(s.cycles), c:'#2e2b24'},{k:'STIRRER', v:Math.round(s.stirrerOut/255*100)+'%', c:'#2e2b24'},{k:'POLICY', v:s.mode==='auto'?'AUTO':'MANUAL', c:s.mode==='auto'?'#566e4b':'#94762f'}],
       rewardTxt:String(s.cycles), lastYieldTxt:s.period?('~'+s.period.toFixed(0)+'s'):'—', narrFeed,
       autoSegBg:s.mode==='auto'?'#6f8466':'transparent', autoSegColor:s.mode==='auto'?'#fbf8f2':'rgba(46,43,36,.7)', manSegBg:s.mode==='manual'?'#94762f':'transparent', manSegColor:s.mode==='manual'?'#fbf8f2':'rgba(46,43,36,.7)',
-      setAuto:this.setAuto, setManual:this.setManual, knobsOpacity:s.mode==='manual'?'1':'.5',
+      setAuto:this.setAuto, setManual:this.setManual, startCycling:this.startCycling, knobsOpacity:s.mode==='manual'?'1':'.5',
       knobCool:this.knobCool, knobMoi:this.knobMoi, knobThr:this.knobThr, knobLight:this.knobLight,
+      // read-only actuator status (ACTUATORS panel) — shows what the model is doing
+      actPolicyTxt:s.mode==='auto'?'AUTO · model driving':'MANUAL · you driving', actPolicyColor:s.mode==='auto'?'#566e4b':'#94762f',
+      actStirPct:Math.round(s.stirrerOut/255*100)+'%', actStirW:(s.stirrerOut/255*100).toFixed(0)+'%',
+      actStirLevel:s.stirrerOut<45?'OFF':s.stirrerOut<125?'LOW':s.stirrerOut<207?'MID':'HIGH',
+      actLightPct:Math.round((s.lightOut||0)/255*100)+'%', actLightW:((s.lightOut||0)/255*100).toFixed(0)+'%',
+      actGluTxt:s.glucoseActive?'ON':'OFF', actGluColor:s.glucoseActive?'#fbf8f2':'rgba(46,43,36,.5)', actGluBg:s.glucoseActive?'#5f7fb0':'rgba(59,55,47,.1)',
+      actNaohTxt:s.naohActive?'ON':'OFF', actNaohColor:s.naohActive?'#fbf8f2':'rgba(46,43,36,.5)', actNaohBg:s.naohActive?'#94762f':'rgba(59,55,47,.1)',
+      actGluPulses:String(s.glucosePulses||0),
       stirFill:(s.stirrer/255*100).toFixed(0)+'%', gluFill:((s.glucoseDoseMs-50)/1950*100).toFixed(0)+'%', ampFill:((s.ampThreshold-5)/90*100).toFixed(0)+'%', lightFill:(s.light/255*100).toFixed(0)+'%',
       manualOn:s.mode==='manual',
       gluSetOn:this.gluSetOn, gluSetOff:this.gluSetOff, pulseGlucose:this.pulseGlucose, naohSetOn:this.naohSetOn, naohSetOff:this.naohSetOff,
