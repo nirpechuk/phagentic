@@ -27,6 +27,7 @@ return class Component extends DCLogic {
       {id:'kla', name:'O₂ transfer rate', expr:'OTR = kLa · (C*−C)', desc:'Oxygen mass transfer — drives the oxidized (blue) phase.', fields:[['kLa','k','1/s'],['C*−C','d','mg/L']], fn:v=>v.k*v.d, unit:'mg/L·s', dp:3},
       {id:'dose', name:'Glucose dose volume', expr:'V = q · t', desc:'Bolus volume delivered by one pump pulse.', fields:[['Flow rate','q','mL/s'],['Pulse time','t','s']], fn:v=>v.q*v.t, unit:'mL', dp:2},
       {id:'cycles', name:'Cycles per run', expr:'N = (R·60) ÷ T', desc:'How many oscillations fit a run of a given length.', fields:[['Run length','R','min'],['Period','P','s']], fn:v=>v.P?(v.R*60)/v.P:0, unit:'cycles', dp:0},
+      {id:'phage', name:'Phage ⇄ blue', expr:'S = 10·log₁₀(P+1) ÷ 12', desc:'Map bacteriophage count to a blue-bottle shade on a 0–10 slider. Clear (0.00) is a sterile sample; deepest blue (10.00) is a saturated culture at ~10¹² phages. Drag the slider or type a count — both stay in sync. Inverse: P = 10^(1.2·S) − 1.', phageConv:true},
       {id:'temp', name:'Temperature  °C ⇄ °F', expr:'°F = °C·9/5 + 32', desc:'Convert between Celsius and Fahrenheit — type in either box.', converter:true},
     ];
     this.panelIds=['swatch','world','narr','manual','calc','ask','runs','notes','actuators'];
@@ -46,7 +47,7 @@ return class Component extends DCLogic {
       onLanding:true, running:true, mode:'auto', cycling:false, bumped:false, uiZoom:1.0, live:false,
       // setpoints (UI-owned; the in-browser control loop reads these)
       stirrer:150, glucoseDoseMs:500, ampThreshold:40, targetHalfPeriod:25, solveMode:'period', light:255, calibTxt:'', source:'off',
-      targetBlue:0.7, targetTime:300,
+      targetBlue:0.7, targetTime:300, targetPhage:'251188642',   // phage count for targetBlue 0.7 (= 10^(12·0.7)−1)
       glucoseOn:false, naohOn:false,
       settingsOpen:false, bleName:'Bioreactor', bleStatus:'', bleKnown:0,
       // measured / derived (flushed from the ingest loop ~10Hz)
@@ -59,7 +60,7 @@ return class Component extends DCLogic {
       panels:{ swatch:mk(true,'swatch'), world:mk(true,'world'), narr:mk(true,'narr'), manual:mk(true,'manual'), calc:mk(false,'calc'), ask:mk(true,'ask'), runs:mk(true,'runs'), notes:mk(false,'notes'), actuators:mk(true,'actuators') },
       drag:null, resize:null, stageW:1304, stageH:740,
       calc:{display:'0', acc:null, op:null, fresh:true}, calcTab:'keys',
-      eq:{ amp:{}, period:{}, freq:{}, blue:{}, stir:{}, kla:{}, dose:{}, cycles:{}, temp:{} }, eqSel:null,
+      eq:{ amp:{}, period:{}, freq:{}, blue:{}, stir:{}, kla:{}, dose:{}, cycles:{}, temp:{}, phage:{s:'5.00', p:'999999'} }, eqSel:null,
       chat:[{role:'sys', text:'Ask me about this run — amplitude, period, stalling, or how to drive the oscillation.'}], chatInput:'',
       runs:[],
       captures:[], compareMode:false, compareSel:[], animating:false,
@@ -302,13 +303,18 @@ return class Component extends DCLogic {
   // Greedy skyline packing: place each panel at the highest (smallest-y), then
   // leftmost, gap-respecting slot that fits the desk width — tallest first so
   // shorter panels fill the gaps. Minimizes total vertical space, no overlap.
-  packLayout(panels, contentW){
+  packLayout(panels, contentW, pin){
     const g=14, m=14, right=contentW-m, P={...panels};
-    const placed=[];
-    // RUNS is pinned to the top-right corner and treated as an obstacle so the
-    // greedy pack flows the other panels around it.
-    if(P.runs&&P.runs.open){ const rx=Math.max(m, contentW-P.runs.w-m); P.runs={...P.runs, x:rx, y:m}; placed.push({x:rx, y:m, w:P.runs.w, h:P.runs.h}); }
-    const open=this.panelIds.filter(id=>P[id]&&P[id].open&&id!=='runs');
+    const placed=[]; const pinned=pin||{}; const pinIds=[];
+    // RUNS is pinned to the top-right corner and treated as an obstacle so the greedy
+    // pack flows the other panels around it — but only in the default layout. When a
+    // caller supplies its own anchors (the console view), RUNS just flows like the rest.
+    const autoRuns=!pin && P.runs && P.runs.open;
+    if(autoRuns){ const rx=Math.max(m, contentW-P.runs.w-m); P.runs={...P.runs, x:rx, y:m}; placed.push({x:rx, y:m, w:P.runs.w, h:P.runs.h}); }
+    // Caller-supplied anchors are placed at fixed spots and treated as obstacles, so
+    // the rest of the panels greedily flow around them.
+    for(const id in pinned){ if(P[id]&&P[id].open){ const px=Math.max(m, Math.min(pinned[id].x, contentW-P[id].w-m)); const py=Math.max(m, pinned[id].y); P[id]={...P[id], x:px, y:py}; placed.push({x:px, y:py, w:P[id].w, h:P[id].h}); pinIds.push(id); } }
+    const open=this.panelIds.filter(id=>P[id]&&P[id].open&&!(autoRuns&&id==='runs')&&pinIds.indexOf(id)<0);
     const order=open.slice().sort((a,b)=>(P[b].h-P[a].h)||(P[b].w-P[a].w)||(this.panelIds.indexOf(a)-this.panelIds.indexOf(b)));
     const yAt=(x,w)=>{ let y=m; placed.forEach(r=>{ if(x < r.x+r.w+g-0.01 && x+w > r.x-g+0.01) y=Math.max(y, r.y+r.h+g); }); return y; };
     order.forEach(id=>{ const w=P[id].w, h=P[id].h;
@@ -319,6 +325,44 @@ return class Component extends DCLogic {
       xs.forEach(x=>{ const y=yAt(x,w); if(!best || y<best.y-0.5 || (Math.abs(y-best.y)<0.5 && x<best.x)) best={x,y}; });
       P[id]={...P[id], x:best.x, y:best.y}; placed.push({x:best.x, y:best.y, w, h});
     });
+    return P;
+  }
+  // Hand-authored *starting* positions for the console view: CONSOLE top-left (it's
+  // the main panel), STATE ESTIMATE beside it, ACTUATORS under CONSOLE, COLOUR LOG
+  // centred just below. These are only the initial spots — panels stay freely
+  // draggable and tidyDesk re-packs them greedily like any other. NARRATION / ASK /
+  // RUNS flow greedily around these four.
+  consoleLayout(panels, W){
+    const g=14, m=14;
+    // Reset the CONSOLE to its canonical size so it starts identically every entry,
+    // regardless of any earlier resize or mode toggle.
+    const P={...panels}; if(P.manual) P.manual={...P.manual, w:this._size.manual[0], h:this._size.manual[1]};
+    const wOf=(id,d)=>P[id]?P[id].w:d, hOf=(id,d)=>P[id]?P[id].h:d;
+    const cw=wOf('manual',490), ch=hOf('manual',350), ww=wOf('world',620), wh=hOf('world',420), sw=wOf('swatch',350);
+    // Too narrow to honour the arrangement → just greedy-pack everything.
+    if(W < m+cw+g+ww+m) return this.packLayout(P, W);
+    const pin={
+      manual:   { x:m,        y:m },                  // CONSOLE — top-left
+      world:    { x:m+cw+g,   y:m },                  // STATE ESTIMATE — beside it
+      actuators:{ x:m,        y:m+ch+g },             // ACTUATORS — below CONSOLE
+      swatch:   { x:(W-sw)/2, y:m+Math.max(ch,wh)+g },// COLOUR LOG — middle, below top row
+    };
+    return this.packLayout(P, W, pin);
+  }
+  // tidyDesk cleanup: lay open panels out in neat, top-aligned rows — tallest first so
+  // each row's panels share a similar height, and every row centred horizontally. A
+  // calmer, more deliberate grid than the tight skyline pack.
+  tidyLayout(panels, W){
+    const g=14, m=14, avail=Math.max(0, W-2*m);
+    const ids=this.panelIds.filter(id=>panels[id]&&panels[id].open);
+    ids.sort((a,b)=>(panels[b].h-panels[a].h)||(panels[b].w-panels[a].w)||(this.panelIds.indexOf(a)-this.panelIds.indexOf(b)));
+    const rows=[]; let row=[], rw=0;
+    ids.forEach(id=>{ const w=panels[id].w; const add=(row.length?g:0)+w; if(row.length && rw+add>avail+0.5){ rows.push(row); row=[]; rw=0; } row.push(id); rw+=(row.length>1?g:0)+w; });
+    if(row.length) rows.push(row);
+    const P={...panels}; let y=m;
+    rows.forEach(r=>{ const totalW=r.reduce((s,id)=>s+panels[id].w,0)+g*(r.length-1); let x=m+Math.max(0,(avail-totalW)/2); let rowH=0;
+      r.forEach(id=>{ P[id]={...P[id], x:Math.round(x), y:Math.round(y)}; x+=panels[id].w+g; rowH=Math.max(rowH, panels[id].h); });
+      y+=rowH+g; });
     return P;
   }
   deskW(){ if(!this._scroll) return this.state.stageW; const r=this._scroll.getBoundingClientRect(); return r.width/(this.state.uiZoom||1); }
@@ -370,9 +414,18 @@ return class Component extends DCLogic {
   chatRef=(el)=>{ this._chatEl=el; };
 
   closePanel(id){ const w=this.deskW(); this.setState(s=>{ const P={...s.panels}; P[id]={...P[id], open:false}; return { panels:this.packLayout(P, w), animating:true }; }); this.scheduleAnimEnd(); }
-  openPanel(id){ const w=this.deskW(); this.setState(s=>{ const P={...s.panels}; P[id]={...P[id], open:true}; return { panels:this.packLayout(P, w), animating:true }; }); this.scheduleAnimEnd(); }
+  // Right-edge slot for a panel: the highest y at the right margin that clears any
+  // panel already overlapping that column. Used to pop tool panels open on the right.
+  rightSlot(panels, id, W){ const g=14, m=14, p=panels[id], x=Math.max(m, W-m-p.w); let y=m;
+    for(const k in panels){ const q=panels[k]; if(k===id||!q.open) continue; if(x < q.x+q.w+g-0.01 && x+p.w > q.x-g+0.01) y=Math.max(y, q.y+q.h+g); }
+    return { x, y }; }
+  openPanel(id){ const w=this.deskW(); this.setState(s=>{ const P={...s.panels}; P[id]={...P[id], open:true};
+    // CALCULATOR and TEMP NOTES are tools — open them on the right, stacked below
+    // whatever is already there, without reshuffling the rest of the desk.
+    if(id==='calc'||id==='notes'){ const pos=this.rightSlot(P, id, w); P[id]={...P[id], x:pos.x, y:pos.y}; return { panels:P, animating:true }; }
+    return { panels:this.packLayout(P, w), animating:true }; }); this.scheduleAnimEnd(); }
 
-  enter=()=>{ const w=this.deskW(); this.setState(s=>{ const P={...s.panels}; this.panelIds.forEach(id=>{ if(id!=='calc'&&id!=='notes') P[id]={...P[id], open:true}; }); return { onLanding:false, panels:this.packLayout(P, w), animating:true }; }, ()=>this.measure()); this.scheduleAnimEnd(); };
+  enter=()=>{ const w=this.deskW(); this.setState(s=>{ const P={...s.panels}; this.panelIds.forEach(id=>{ if(id!=='calc'&&id!=='notes') P[id]={...P[id], open:true}; }); return { onLanding:false, panels:this.consoleLayout(P, w), animating:true }; }, ()=>this.measure()); this.scheduleAnimEnd(); };
   // Cursor-tracking "shine" — a soft spotlight follows the pointer across the text. Generic:
   // works on any element via e.currentTarget, and saves/restores the original inline style so it
   // also works on gradient text (logo, hero) without clobbering its base gradient.
@@ -389,7 +442,7 @@ return class Component extends DCLogic {
   logoLeave=(e)=>{ this.gshineReset(e); this.clearHint(); };
   // Entering auto is passive — it just shows the goal inputs. The model does not
   // start until LAUNCH (startCycling). Backend stays idle (manual) until then.
-  watchRace=()=>{ const w=this.deskW(); this.setState(s=>{ const keep=new Set(['swatch','world','narr','manual','actuators']); const P={...s.panels}; this.panelIds.forEach(id=>{ P[id]={...P[id], open:keep.has(id)}; }); return { onLanding:false, running:true, mode:'auto', panels:this.packLayout(P, w), animating:true }; }, ()=>this.measure()); this.scheduleAnimEnd(); };
+  watchRace=()=>{ const w=this.deskW(); this.setState(s=>{ const keep=new Set(['swatch','world','narr','manual','actuators']); const P={...s.panels}; this.panelIds.forEach(id=>{ P[id]={...P[id], open:keep.has(id)}; }); return { onLanding:false, running:true, mode:'auto', panels:this.consoleLayout(P, w), animating:true }; }, ()=>this.measure()); this.scheduleAnimEnd(); };
   // Play / pause. Pause stops the model AND drives every actuator off, after
   // snapshotting their current values; play restores that snapshot and (if the
   // model was running) re-enters 'ml' — the model instance + its goal persist,
@@ -416,6 +469,10 @@ return class Component extends DCLogic {
       this.pushNarr(this.state.cycling?'▶ Model resumed — outputs restored.':'▶ Resumed — outputs restored.', 'info');
     }
   };
+  // The CONSOLE keeps ONE fixed size for both AUTO and MANUAL — toggling the mode no
+  // longer resizes it. Sized (in _size.manual) to fit MANUAL's control grid, which is
+  // also tall enough to always show AUTO's LAUNCH button. consoleLayout resets it to
+  // this size on every entry, so the console starts the same size every time.
   // AUTO is just the view; it does not engage the model (LAUNCH does).
   setAuto=()=>this.setState({ mode:'auto' });
   // MANUAL stops the model and hands you direct control.
@@ -424,7 +481,7 @@ return class Component extends DCLogic {
   zoomOut=()=>this.setState(s=>({ uiZoom:Math.max(0.8,+(s.uiZoom-0.08).toFixed(2)) }), ()=>this.measure());
   zoomReset=()=>this.setState({ uiZoom:1.0 }, ()=>this.measure());
   // Re-pack only the panels that are currently open; leave minimized ones minimized.
-  tidyDesk=()=>{ const w=this.deskW(); this.setState(s=>({ panels:this.packLayout({...s.panels}, w), animating:true })); this.scheduleAnimEnd(); };
+  tidyDesk=()=>{ const w=this.deskW(); this.setState(s=>({ panels:this.tidyLayout({...s.panels}, w), animating:true })); this.scheduleAnimEnd(); };
   bump=()=>{ this._bump=true; this.pushNarr('Disturbance injected — controller re-estimating.','warn'); this.setState({ bumped:true }); };
   remelt=()=>this.resetRun(this.now(),true,'Manual restart — new run logged.');
   addRun=()=>{ this.resetRun(this.now(),true,'New run started — previous batch logged.'); const w=this.deskW(); this.setState(s=>{ const P={...s.panels}; P.runs={...P.runs, open:true}; return { panels:this.packLayout(P, w), animating:true }; }); this.scheduleAnimEnd(); };
@@ -445,6 +502,18 @@ return class Component extends DCLogic {
   clearEq=(id)=>this.setState(s=>({ eq:{...s.eq, [id]:{}} }));
   setTempC=(e)=>{ const c=e.target.value, n=parseFloat(c); this.setState(s=>({ eq:{...s.eq, temp:{ c, f:(c===''||isNaN(n))?'':String(Math.round((n*9/5+32)*100)/100)} } })); };
   setTempF=(e)=>{ const f=e.target.value, n=parseFloat(f); this.setState(s=>({ eq:{...s.eq, temp:{ f, c:(f===''||isNaN(n))?'':String(Math.round(((n-32)*5/9)*100)/100)} } })); };
+  // ---- phage ⇄ blue converter: 0–10 slider ↔ phage count ↔ clear→blue shade ---
+  sliderToPhage(S){ return Math.pow(10, 1.2*S) - 1; }                                          // P = 10^(1.2·S) − 1
+  phageToSlider(P){ return 10*Math.log10(P+1)/12; }                                            // S = 10·log₁₀(P+1) ÷ 12
+  sliderToRgb(S){ const t=Math.max(0,Math.min(1,S/10)), v=Math.round(255*(1-t)); return [v,v,255]; }  // white → deep blue
+  fmtPhageInput(P){ return P<100 ? String(Number(P.toFixed(2))) : String(Math.round(P)); }     // editable field value
+  fmtPhagePretty(P){ return P<1 ? '0' : Math.round(P).toLocaleString(); }                       // grouped read-out
+  setPhageSlider=(e)=>{ const raw=e.target.value, n=parseFloat(raw); this.setState(s=>{
+    if(raw===''||isNaN(n)) return { eq:{...s.eq, phage:{ s:raw, p:'' }} };
+    const S=Math.max(0,Math.min(10,n)); return { eq:{...s.eq, phage:{ s:raw, p:this.fmtPhageInput(this.sliderToPhage(S)) }} }; }); };
+  setPhageCount=(e)=>{ const raw=e.target.value, n=parseFloat(raw); this.setState(s=>{
+    if(raw===''||isNaN(n)||n<0) return { eq:{...s.eq, phage:{ s:'', p:raw }} };
+    const S=Math.max(0,Math.min(10, this.phageToSlider(n))); return { eq:{...s.eq, phage:{ s:S.toFixed(2), p:raw }} }; }); };
   manualFire=()=>this.pulseDigital('glucose');
   pulseGlucose=()=>this.pulseDigital('glucose');
   // PWM hard ON (full)/OFF (0)
@@ -463,7 +532,10 @@ return class Component extends DCLogic {
   setTarget=(e)=>{ const v=parseFloat(e.target.value); if(!isNaN(v)){ const cv=Math.max(5,Math.min(90,v)); if(this._be) this._be.setModelParams({target_half_period:cv}); this.setState({ targetHalfPeriod:cv }); } };
   // AUTO targets for the RL policy: reach a target blue intensity by a target time.
   // GoalModel params (backend/control/goal_model.py): goal_blue 0..1, ideal_time abs seconds.
-  setTargetBlue=(e)=>{ const v=parseFloat(e.target.value); if(!isNaN(v)){ const cv=Math.max(0,Math.min(1,v/100)); if(this._be) this._be.setModelParams({goal_blue:cv}); this.setState({ targetBlue:cv, mode:'auto' }); } };
+  setTargetBlue=(e)=>{ const v=parseFloat(e.target.value); if(!isNaN(v)){ const cv=Math.max(0,Math.min(1,v/100)); if(this._be) this._be.setModelParams({goal_blue:cv}); this.setState({ targetBlue:cv, targetPhage:this.fmtPhageInput(this.sliderToPhage(cv*10)), mode:'auto' }); } };
+  // Target colour expressed as a bacteriophage count (same mapping as the calculator's
+  // Phage ⇄ blue): targetBlue is the 0–1 blue level, so P = 10^(12·targetBlue) − 1.
+  setTargetPhage=(e)=>{ const raw=e.target.value, n=parseFloat(raw); if(raw===''||isNaN(n)||n<0){ this.setState({ targetPhage:raw }); return; } const cv=Math.max(0,Math.min(1, this.phageToSlider(n)/10)); if(this._be) this._be.setModelParams({goal_blue:cv}); this.setState({ targetPhage:raw, targetBlue:cv, mode:'auto' }); };
   setTargetTime=(e)=>{ const v=parseFloat(e.target.value); if(!isNaN(v)){ const cv=Math.max(0,v); if(this._be) this._be.setModelParams({ideal_time:cv}); this.setState({ targetTime:cv }); } };
   // Launch: engage the goal model, zero the run clock, and commit the goal.
   // ideal_time is absolute seconds since run start, so after the reset it reads
@@ -640,12 +712,15 @@ return class Component extends DCLogic {
     // equation library list + selected-equation detail
     const eqList=this.eqLib.map(d=>({ name:d.name, expr:d.expr, sel:()=>this.selectEq(d.id) }));
     const eqSelDef=this.eqLib.find(d=>d.id===s.eqSel)||null;
-    let eqDetail={ name:'', expr:'', desc:'', fields:[], result:'—', unit:'', clear:()=>{}, conv:false, normal:false, tempC:'', tempF:'' };
+    let eqDetail={ name:'', expr:'', desc:'', fields:[], result:'—', unit:'', clear:()=>{}, conv:false, normal:false, phage:false, tempC:'', tempF:'', phageS:0, phageSStr:'', phageCount:'', phageSwatch:'rgb(255,255,255)', phageRgb:'', phagePretty:'—' };
     if(eqSelDef){
       const bag=s.eq[eqSelDef.id]||{};
-      if(eqSelDef.converter){ eqDetail={ name:eqSelDef.name, expr:eqSelDef.expr, desc:eqSelDef.desc, conv:true, normal:false, fields:[], result:'', unit:'', clear:()=>this.clearEq(eqSelDef.id), tempC:(s.eq.temp&&s.eq.temp.c)||'', tempF:(s.eq.temp&&s.eq.temp.f)||'' }; }
+      if(eqSelDef.phageConv){ const sStr=bag.s??'', pStr=bag.p??''; const sn=parseFloat(sStr); const Scur=isNaN(sn)?0:Math.max(0,Math.min(10,sn)); const rgb=this.sliderToRgb(Scur);
+        eqDetail={ name:eqSelDef.name, expr:eqSelDef.expr, desc:eqSelDef.desc, conv:false, normal:false, phage:true, fields:[], result:'', unit:'', clear:()=>this.clearEq(eqSelDef.id), tempC:'', tempF:'',
+          phageS:Scur, phageSStr:sStr, phageCount:pStr, phageSwatch:'rgb('+rgb.join(',')+')', phageRgb:'R '+rgb[0]+'  G '+rgb[1]+'  B '+rgb[2], phagePretty:(sStr===''||isNaN(sn))?'—':this.fmtPhagePretty(this.sliderToPhage(Scur)) }; }
+      else if(eqSelDef.converter){ eqDetail={ name:eqSelDef.name, expr:eqSelDef.expr, desc:eqSelDef.desc, conv:true, normal:false, phage:false, fields:[], result:'', unit:'', clear:()=>this.clearEq(eqSelDef.id), tempC:(s.eq.temp&&s.eq.temp.c)||'', tempF:(s.eq.temp&&s.eq.temp.f)||'' }; }
       else { const v={}; let ok=true; eqSelDef.fields.forEach(([lab,key])=>{ const raw=bag[key]; const num=parseFloat(raw); v[key]=isNaN(num)?0:num; if(raw===undefined||raw==='') ok=false; }); const res=ok?eqSelDef.fn(v):null;
-        eqDetail={ name:eqSelDef.name, expr:eqSelDef.expr, desc:eqSelDef.desc, conv:false, normal:true, clear:()=>this.clearEq(eqSelDef.id), tempC:'', tempF:'',
+        eqDetail={ name:eqSelDef.name, expr:eqSelDef.expr, desc:eqSelDef.desc, conv:false, normal:true, phage:false, clear:()=>this.clearEq(eqSelDef.id), tempC:'', tempF:'',
           fields:eqSelDef.fields.map(([label,key,unit])=>({ label, unit:unit||'', val:bag[key]??'', h:this.setEq(eqSelDef.id,key) })),
           result: res==null?'—':Number(res.toFixed(eqSelDef.dp)).toLocaleString(), unit: res==null?'':eqSelDef.unit };
       }
@@ -675,6 +750,8 @@ return class Component extends DCLogic {
       sourceTxt:s.source==='hub'?'⌁ CONNECTED':'◌ OFFLINE', sourceColor:s.source==='hub'?'#566e4b':'rgba(46,43,36,.45)',
       isAuto:s.mode==='auto', isManual:s.mode==='manual',
       targetBlueVal:Math.round(s.targetBlue*100), targetBlueFill:(s.targetBlue*100).toFixed(0)+'%', setTargetBlue:this.setTargetBlue, targetTimeVal:s.targetTime, setTargetTime:this.setTargetTime,
+      targetBlueSwatch:'rgb('+this.rgbForBlue(s.targetBlue).join(',')+')',
+      targetPhageVal:s.targetPhage, setTargetPhage:this.setTargetPhage, targetPhagePretty:this.fmtPhagePretty(this.sliderToPhage(s.targetBlue*10)),
       bleConnect:this.bleConnect, bleLabel:s.live?'⌁ connected':'⌁ connect', bleBg:s.live?'rgba(86,110,75,.18)':'rgba(111,132,102,.12)', bleColor:'#566e4b',
       openSettings:this.openSettings, closeSettings:this.closeSettings, settingsOpen:s.settingsOpen,
       bleName:s.bleName, setBleName:this.setBleName, bleReconnect:this.bleReconnect, bleDisconnect:this.bleDisconnect,
@@ -687,6 +764,7 @@ return class Component extends DCLogic {
       captureCountTxt:s.captures.length?(s.captures.length+' saved'):'none saved', compareBtnTxt:s.compareMode?'done':'compare',
       eqList, eqLibMode:(s.calcTab==='fx'&&!s.eqSel), eqDetailMode:(s.calcTab==='fx'&&!!s.eqSel),
       eqName:eqDetail.name, eqExpr:eqDetail.expr, eqDesc:eqDetail.desc, eqFields:eqDetail.fields, eqResult:eqDetail.result, eqUnit:eqDetail.unit, eqClear:eqDetail.clear, eqConv:eqDetail.conv, eqNormal:eqDetail.normal, eqTempC:eqDetail.tempC, eqTempF:eqDetail.tempF, setTempC:this.setTempC, setTempF:this.setTempF, eqBack:this.eqBack,
+      eqPhage:eqDetail.phage, phageSliderVal:eqDetail.phageS, phageSliderStr:eqDetail.phageSStr, phageCountVal:eqDetail.phageCount, phageSwatch:eqDetail.phageSwatch, phageRgbTxt:eqDetail.phageRgb, phagePrettyTxt:eqDetail.phagePretty, setPhageSlider:this.setPhageSlider, setPhageCount:this.setPhageCount,
       tempOursTxt:Math.round(s.blue*100)+'%', tempBaseTxt:Math.round(s.amp*100)+'%', oursSolidTxt:s.phase.toUpperCase(), baseSolidTxt:'tgt '+s.ampThreshold+'%',
       oursCryst:s.blue.toFixed(2), baseCryst:s.amp.toFixed(2), oursGlow:s.glucoseActive?'0 0 34px rgba(148,118,47,.55)':'0 0 6px rgba(95,115,85,0)',
       turbidity:s.blue.toFixed(2), turbidityTxt:s.blue.toFixed(2),

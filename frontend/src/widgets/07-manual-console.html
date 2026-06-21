@@ -4,14 +4,14 @@
       <sc-if value="{{ panels.manual.open }}" hint-placeholder-val="{{ true }}">
       <div style="position:absolute; left:0; top:0; width:{{ panels.manual.w }}; height:{{ panels.manual.h }}; transform:{{ panels.manual.tf }}; z-index:{{ panels.manual.z }}; border-radius:20px; background:linear-gradient(150deg, rgba(254,251,246,.74), rgba(247,242,233,.52)); -webkit-backdrop-filter:blur(15px) saturate(1.3); backdrop-filter:blur(15px) saturate(1.3); border:1px solid rgba(255,255,255,.64); box-shadow:0 26px 54px -28px rgba(70,60,48,.5), inset 0 1px 0 rgba(255,255,255,.88); display:flex; flex-direction:column; overflow:hidden; transition:{{ animTrans }};">
         <div onMouseDown="{{ panels.manual.resize }}" title="drag to resize" style="position:absolute; right:2px; bottom:2px; width:18px; height:18px; cursor:nwse-resize; z-index:6; border-right:2px solid rgba(59,55,47,.3); border-bottom:2px solid rgba(59,55,47,.3); border-bottom-right-radius:8px;"></div>
-        <div onMouseDown="{{ dragH.manual }}" style="cursor:grab; padding:13px 18px 9px; display:flex; align-items:center; justify-content:space-between;">
-          <span style="font-family:'JetBrains Mono',monospace; font-size:12.5px; letter-spacing:.18em; color:rgba(46,43,36,.55);">CONSOLE</span>
+        <div onMouseDown="{{ dragH.manual }}" style="cursor:grab; padding:13px 46px 9px 18px; display:flex; align-items:center; justify-content:space-between;">
+          <span style="font-family:'JetBrains Mono',monospace; font-size:13px; font-weight:800; letter-spacing:.2em; color:rgba(46,43,36,.85);">CONSOLE</span>
           <div style="display:flex; align-items:center; gap:10px;">
             <div style="display:flex; font-family:'JetBrains Mono',monospace; font-size:13px; border:1px solid rgba(59,55,47,.22); border-radius:8px; overflow:hidden;">
               <button onMouseDown="{{ stopProp }}" onClick="{{ setAuto }}" style="cursor:pointer; border:none; padding:5px 12px; font:inherit; background:{{ autoSegBg }}; color:{{ autoSegColor }};">AUTO</button>
               <button onMouseDown="{{ stopProp }}" onClick="{{ setManual }}" style="cursor:pointer; border:none; padding:5px 12px; font:inherit; background:{{ manSegBg }}; color:{{ manSegColor }};">MANUAL</button>
             </div>
-            <button onMouseDown="{{ stopProp }}" onClick="{{ closeH.manual }}" style="cursor:pointer; background:none; border:none; color:rgba(46,43,36,.4); font-size:15px; line-height:1; padding:2px 4px;" style-hover="color:#2e2b24;">×</button>
+            <button onMouseDown="{{ stopProp }}" onClick="{{ closeH.manual }}" title="close" style="position:absolute; top:11px; right:13px; z-index:8; cursor:pointer; display:flex; align-items:center; justify-content:center; width:23px; height:23px; padding:0; border-radius:50%; background:rgba(59,55,47,.05); border:1px solid rgba(59,55,47,.12); color:rgba(46,43,36,.45); font-size:14px; line-height:1; transition:background .15s, color .15s, border-color .15s;" style-hover="background:rgba(59,55,47,.13); color:#2e2b24; border-color:rgba(59,55,47,.24);">×</button>
           </div>
         </div>
         <div style="flex:1; min-height:0; overflow-y:auto; padding:10px 18px 16px; display:flex; flex-direction:column; gap:13px;">
@@ -22,10 +22,16 @@
               <div style="display:flex; justify-content:space-between; font-family:'JetBrains Mono',monospace; font-size:11px; color:rgba(46,43,36,.6); margin-bottom:6px;"><span>target blue</span><b style="font-weight:700; color:#2e2b24;">{{ targetBlueVal }}%</b></div>
               <input type="range" min="0" max="100" value="{{ targetBlueVal }}" onMouseDown="{{ stopProp }}" onInput="{{ setTargetBlue }}" style="width:100%; accent-color:#5f7fb0; cursor:pointer;" />
             </div>
+            <div title="target colour output" style="flex:none; align-self:center; width:38px; height:38px; border-radius:50%; background:{{ targetBlueSwatch }}; border:1px solid rgba(59,55,47,.28); box-shadow:inset 0 1px 3px rgba(255,255,255,.6), 0 3px 8px -3px rgba(70,60,48,.5);"></div>
             <div style="flex:none; width:104px;">
               <div style="font-family:'JetBrains Mono',monospace; font-size:11px; color:rgba(46,43,36,.6); margin-bottom:6px;">by time (s)</div>
               <input type="number" step="10" value="{{ targetTimeVal }}" onMouseDown="{{ stopProp }}" onInput="{{ setTargetTime }}" style="width:100%; text-align:center; background:rgba(255,255,255,.5); border:1px solid rgba(59,55,47,.2); border-radius:8px; padding:7px; font-family:'JetBrains Mono',monospace; font-size:14px; color:#2e2b24; outline:none;" />
             </div>
+          </div>
+          <div style="display:flex; align-items:center; gap:10px;">
+            <span style="flex:none; font-family:'JetBrains Mono',monospace; font-size:11px; color:rgba(46,43,36,.6);">target phages</span>
+            <input type="number" min="0" step="1" value="{{ targetPhageVal }}" onMouseDown="{{ stopProp }}" onInput="{{ setTargetPhage }}" title="bacteriophage count that maps to the target colour" style="flex:1; min-width:0; background:rgba(255,255,255,.5); border:1px solid rgba(59,55,47,.2); border-radius:8px; padding:7px 10px; font-family:'JetBrains Mono',monospace; font-size:14px; color:#2e2b24; outline:none;" />
+            <span style="flex:none; font-family:'JetBrains Mono',monospace; font-size:10.5px; color:rgba(46,43,36,.45);">≈ {{ targetPhagePretty }}</span>
           </div>
           <button onMouseDown="{{ stopProp }}" onClick="{{ startCycling }}" title="reset the clock and start driving toward the target hue" style="cursor:pointer; width:100%; margin-top:2px; background:#6f8466; border:none; border-radius:11px; padding:12px; font-family:'JetBrains Mono',monospace; font-size:13.5px; font-weight:700; letter-spacing:.12em; color:#fbf8f2; box-shadow:0 8px 18px -10px rgba(86,110,75,.85);" style-hover="background:#566e4b;">▶ LAUNCH · START CYCLING</button>
           </sc-if>
