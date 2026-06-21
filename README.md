@@ -3,7 +3,6 @@
 <img width="3201" height="1794" alt="Screenshot from 2026-06-21 09-11-00" src="https://github.com/user-attachments/assets/c704267b-5678-4d9a-9430-c6f44100d4f9" />
 
 
-
 A closed-loop controller for the **Blue Bottle** oscillating reaction. PHAGENTIC
 watches the live colour of the solution (blue ⇄ colorless), estimates the
 oscillation state — amplitude, period, phase, stall risk — and drives the
@@ -44,6 +43,9 @@ phagentic/
 ## Architecture
 
 <img width="1245" height="764" alt="Architecture" src="https://github.com/user-attachments/assets/34d81900-0187-47e0-bde2-d6daf9978507" />
+
+<img width="4032" height="3024" alt="IMG_3708" src="https://github.com/user-attachments/assets/ae78bfb9-9276-4961-8d0b-aa9b1d7179d1" />
+
 
 ## WebSocket protocol (`ws://<host>:8080/ws`)
 
