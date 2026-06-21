@@ -37,6 +37,7 @@ class GoalModel(Model):
         # goal (None until an operator sets it)
         self.goal_blue: float | None = None
         self.ideal_time: float | None = None      # absolute seconds since run start
+        self.target_period: float | None = None   # desired full-cycle period (s)
 
         # tunables — pumps are deliberately small + slow: every pulse adds liquid
         # volume (dilution/drift), so doses are short and cooldowns long. Mixing
@@ -69,6 +70,7 @@ class GoalModel(Model):
         clean = self.estimator.update(s)
         clean.goal_blue = self.goal_blue
         clean.time_remaining = (self.ideal_time - s.t) if self.ideal_time is not None else None
+        clean.target_period = self.target_period
 
         act = Action()
         due = (s.now - self._last_decision_t) >= (1.0 / self.decision_hz)
@@ -103,6 +105,7 @@ class GoalModel(Model):
             "controller": self.controller_name,
             "goal_blue": self.goal_blue,
             "ideal_time": self.ideal_time,
+            "target_period": self.target_period,
             "decision_hz": self.decision_hz,
             "glucose_dose_ms": self.glucose_dose_ms,
             "naoh_dose_ms": self.naoh_dose_ms,
@@ -129,6 +132,11 @@ class GoalModel(Model):
         if "time_to_goal" in p and p["time_to_goal"] is not None:
             # relative convenience: N seconds from now → absolute run time
             self.ideal_time = self._latest_t + max(0.0, float(p["time_to_goal"]))
+        if "target_period" in p:
+            v = p["target_period"]
+            # clamp to the reaction's achievable cadence (≈ fastest/slowest mixer);
+            # None clears the lock and restores deadline scheduling.
+            self.target_period = None if v is None else max(6.0, min(120.0, float(v)))
         if "decision_hz" in p:
             self.decision_hz = max(0.2, min(20.0, float(p["decision_hz"])))
         if "glucose_dose_ms" in p:

@@ -27,20 +27,21 @@ async def run(url: str, out: str, seconds: float | None, max_frames: int | None)
     os.makedirs(os.path.dirname(out) or ".", exist_ok=True)
     n = 0
     start = time.monotonic()
-    async with websockets.connect(url) as ws, open(out, "w") as f:
-        while True:
-            msg = json.loads(await ws.recv())
-            if msg.get("type") != "state":
-                continue
-            f.write(json.dumps(msg) + "\n")
-            f.flush()
-            n += 1
-            if n % 50 == 0:
-                print(f"  {n} frames (t={msg.get('t')})")
-            if max_frames and n >= max_frames:
-                break
-            if seconds and (time.monotonic() - start) >= seconds:
-                break
+    async with websockets.connect(url) as ws:
+        with open(out, "w") as f:
+            while True:
+                msg = json.loads(await ws.recv())
+                if msg.get("type") != "state":
+                    continue
+                f.write(json.dumps(msg) + "\n")
+                f.flush()
+                n += 1
+                if n % 50 == 0:
+                    print(f"  {n} frames (t={msg.get('t')})")
+                if max_frames and n >= max_frames:
+                    break
+                if seconds and (time.monotonic() - start) >= seconds:
+                    break
     print(f"wrote {n} frames → {out}")
 
 

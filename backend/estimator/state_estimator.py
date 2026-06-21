@@ -30,8 +30,8 @@ def mixer_level_of(pwm: int) -> int:
 class CleanState:
     """Normalized, dimensionless state handed to a controller.
 
-    ``goal_blue`` / ``time_remaining`` are filled by the owning ``GoalModel``
-    (``None`` until an operator sets a goal)."""
+    ``goal_blue`` / ``time_remaining`` / ``target_period`` are filled by the
+    owning ``GoalModel`` (``None`` until an operator sets them)."""
     t: float                      # seconds since run start (run clock)
     blue_level: float             # EMA-smoothed blue, 0..1
     baseline: float               # slow midline of the oscillation, 0..1
@@ -46,6 +46,7 @@ class CleanState:
     mixer_onehot: tuple           # (off, low, mid, high) ∈ {0,1}
     goal_blue: float | None = None
     time_remaining: float | None = None
+    target_period: float | None = None    # desired full-cycle period (s); locks cadence
 
 
 class StateEstimator:

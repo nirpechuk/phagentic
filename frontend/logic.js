@@ -47,7 +47,7 @@ return class Component extends DCLogic {
       onLanding:true, running:true, mode:'auto', cycling:false, bumped:false, uiZoom:1.0, live:false,
       // setpoints (UI-owned; the in-browser control loop reads these)
       stirrer:150, glucoseDoseMs:500, ampThreshold:40, targetHalfPeriod:25, solveMode:'period', light:255, calibTxt:'', source:'off',
-      targetBlue:0.7, targetTime:300, targetPhage:'251188642',   // phage count for targetBlue 0.7 (= 10^(12·0.7)−1)
+      targetBlue:0.7, targetTime:25, targetPhage:'251188642',   // targetTime = cycle period (s); phage count for targetBlue 0.7 (= 10^(12·0.7)−1)
       glucoseOn:false, naohOn:false,
       settingsOpen:false, bleName:'Bioreactor', bleStatus:'', bleKnown:0,
       // measured / derived (flushed from the ingest loop ~10Hz)
@@ -536,11 +536,13 @@ return class Component extends DCLogic {
   // Target colour expressed as a bacteriophage count (same mapping as the calculator's
   // Phage ⇄ blue): targetBlue is the 0–1 blue level, so P = 10^(12·targetBlue) − 1.
   setTargetPhage=(e)=>{ const raw=e.target.value, n=parseFloat(raw); if(raw===''||isNaN(n)||n<0){ this.setState({ targetPhage:raw }); return; } const cv=Math.max(0,Math.min(1, this.phageToSlider(n)/10)); if(this._be) this._be.setModelParams({goal_blue:cv}); this.setState({ targetPhage:raw, targetBlue:cv, mode:'auto' }); };
-  setTargetTime=(e)=>{ const v=parseFloat(e.target.value); if(!isNaN(v)){ const cv=Math.max(0,v); if(this._be) this._be.setModelParams({ideal_time:cv}); this.setState({ targetTime:cv }); } };
+  // targetTime is the desired full-cycle PERIOD (s) — the heuristic locks the
+  // oscillation cadence to it (backend clamps 6..120). Not a one-shot deadline.
+  setTargetTime=(e)=>{ const v=parseFloat(e.target.value); if(!isNaN(v)){ const cv=Math.max(6,Math.min(120,v)); if(this._be) this._be.setModelParams({target_period:cv}); this.setState({ targetTime:cv }); } };
   // Launch: engage the goal model, zero the run clock, and commit the goal.
   // ideal_time is absolute seconds since run start, so after the reset it reads
   // as "reach target blue this many seconds from launch".
-  startCycling=()=>{ if(this._be){ this._be.setModel('goal_blue'); this._be.setMode('ml'); this._be.resetRun(); this._be.setModelParams({ goal_blue:this.state.targetBlue, ideal_time:this.state.targetTime }); } this.setState({ mode:'auto', running:true, cycling:true }); this.pushNarr('▶ Launched — driving to target hue.', 'win'); };
+  startCycling=()=>{ if(this._be){ this._be.setModel('goal_blue'); this._be.setMode('ml'); this._be.resetRun(); this._be.setModelParams({ goal_blue:this.state.targetBlue, target_period:this.state.targetTime }); } this.setState({ mode:'auto', running:true, cycling:true }); this.pushNarr('▶ Launched — cycling at '+this.state.targetTime+'s period.', 'win'); };
   setSolveEq=()=>this.setState({ solveMode:'period' });
   setSolveEnergy=()=>this.setState({ solveMode:'stir' });
   applySolve=()=>{ const b=this.solve(this.state.targetHalfPeriod, this.state.solveMode); this._stirrerOut=b.stir; if(this.state.live) this.cmdSet('set_pwm','stirrer',b.stir); this.setState({ mode:'manual', stirrer:b.stir }); };
@@ -765,7 +767,7 @@ return class Component extends DCLogic {
       eqList, eqLibMode:(s.calcTab==='fx'&&!s.eqSel), eqDetailMode:(s.calcTab==='fx'&&!!s.eqSel),
       eqName:eqDetail.name, eqExpr:eqDetail.expr, eqDesc:eqDetail.desc, eqFields:eqDetail.fields, eqResult:eqDetail.result, eqUnit:eqDetail.unit, eqClear:eqDetail.clear, eqConv:eqDetail.conv, eqNormal:eqDetail.normal, eqTempC:eqDetail.tempC, eqTempF:eqDetail.tempF, setTempC:this.setTempC, setTempF:this.setTempF, eqBack:this.eqBack,
       eqPhage:eqDetail.phage, phageSliderVal:eqDetail.phageS, phageSliderStr:eqDetail.phageSStr, phageCountVal:eqDetail.phageCount, phageSwatch:eqDetail.phageSwatch, phageRgbTxt:eqDetail.phageRgb, phagePrettyTxt:eqDetail.phagePretty, setPhageSlider:this.setPhageSlider, setPhageCount:this.setPhageCount,
-      tempOursTxt:Math.round(s.blue*100)+'%', tempBaseTxt:Math.round(s.amp*100)+'%', oursSolidTxt:s.phase.toUpperCase(), baseSolidTxt:'tgt '+s.ampThreshold+'%',
+      tempOursTxt:Math.round(s.blue*100)+'%', tempCleanTxt:Math.round((s.blueEst!=null?s.blueEst:s.blue)*100)+'%', tempBaseTxt:Math.round(s.amp*100)+'%', oursSolidTxt:s.phase.toUpperCase(), baseSolidTxt:'tgt '+s.ampThreshold+'%',
       oursCryst:s.blue.toFixed(2), baseCryst:s.amp.toFixed(2), oursGlow:s.glucoseActive?'0 0 34px rgba(148,118,47,.55)':'0 0 6px rgba(95,115,85,0)',
       turbidity:s.blue.toFixed(2), turbidityTxt:s.blue.toFixed(2),
       ourPath, basePath, baseFired:false, oursFired:false,
