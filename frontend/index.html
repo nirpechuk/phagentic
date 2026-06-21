@@ -218,7 +218,7 @@
       <div style="position:absolute; left:0; top:0; width:{{ panels.manual.w }}; height:{{ panels.manual.h }}; transform:{{ panels.manual.tf }}; z-index:{{ panels.manual.z }}; border-radius:20px; background:linear-gradient(150deg, rgba(254,251,246,.74), rgba(247,242,233,.52)); -webkit-backdrop-filter:blur(15px) saturate(1.3); backdrop-filter:blur(15px) saturate(1.3); border:1px solid rgba(255,255,255,.64); box-shadow:0 26px 54px -28px rgba(70,60,48,.5), inset 0 1px 0 rgba(255,255,255,.88); display:flex; flex-direction:column; overflow:hidden; transition:{{ animTrans }};">
         <div onMouseDown="{{ panels.manual.resize }}" title="drag to resize" style="position:absolute; right:2px; bottom:2px; width:18px; height:18px; cursor:nwse-resize; z-index:6; border-right:2px solid rgba(59,55,47,.3); border-bottom:2px solid rgba(59,55,47,.3); border-bottom-right-radius:8px;"></div>
         <div onMouseDown="{{ dragH.manual }}" style="cursor:grab; padding:13px 18px 9px; display:flex; align-items:center; justify-content:space-between;">
-          <span style="font-family:'JetBrains Mono',monospace; font-size:12.5px; letter-spacing:.18em; color:rgba(46,43,36,.55);">MANUAL CONSOLE</span>
+          <span style="font-family:'JetBrains Mono',monospace; font-size:12.5px; letter-spacing:.18em; color:rgba(46,43,36,.55);">CONSOLE</span>
           <div style="display:flex; align-items:center; gap:10px;">
             <div style="display:flex; font-family:'JetBrains Mono',monospace; font-size:13px; border:1px solid rgba(59,55,47,.22); border-radius:8px; overflow:hidden;">
               <button onMouseDown="{{ stopProp }}" onClick="{{ setAuto }}" style="cursor:pointer; border:none; padding:5px 12px; font:inherit; background:{{ autoSegBg }}; color:{{ autoSegColor }};">AUTO</button>
@@ -228,7 +228,19 @@
           </div>
         </div>
         <div style="flex:1; min-height:0; overflow-y:auto; padding:10px 18px 16px; display:flex; flex-direction:column; gap:13px;">
-          <div style="font-family:'JetBrains Mono',monospace; font-size:11px; letter-spacing:.14em; color:rgba(46,43,36,.5);">AUTO TUNING · dose · trigger</div>
+          <sc-if value="{{ isAuto }}" hint-placeholder-val="{{ true }}">
+          <div style="font-family:'JetBrains Mono',monospace; font-size:11px; letter-spacing:.14em; color:rgba(46,43,36,.5);">RL GOAL · reach a target hue by a time</div>
+          <div style="display:flex; gap:12px; align-items:flex-end;">
+            <div style="flex:1; min-width:0;">
+              <div style="display:flex; justify-content:space-between; font-family:'JetBrains Mono',monospace; font-size:11px; color:rgba(46,43,36,.6); margin-bottom:6px;"><span>target blue</span><b style="font-weight:700; color:#2e2b24;">{{ targetBlueVal }}%</b></div>
+              <input type="range" min="0" max="100" value="{{ targetBlueVal }}" onMouseDown="{{ stopProp }}" onInput="{{ setTargetBlue }}" style="width:100%; accent-color:#5f7fb0; cursor:pointer;" />
+            </div>
+            <div style="flex:none; width:104px;">
+              <div style="font-family:'JetBrains Mono',monospace; font-size:11px; color:rgba(46,43,36,.6); margin-bottom:6px;">by time (s)</div>
+              <input type="number" step="10" value="{{ targetTimeVal }}" onMouseDown="{{ stopProp }}" onInput="{{ setTargetTime }}" style="width:100%; text-align:center; background:rgba(255,255,255,.5); border:1px solid rgba(59,55,47,.2); border-radius:8px; padding:7px; font-family:'JetBrains Mono',monospace; font-size:14px; color:#2e2b24; outline:none;" />
+            </div>
+          </div>
+          <div style="border-top:1px solid rgba(59,55,47,.12); padding-top:12px; font-family:'JetBrains Mono',monospace; font-size:11px; letter-spacing:.14em; color:rgba(46,43,36,.5);">AUTO TUNING · dose · trigger</div>
           <div style="display:flex; justify-content:space-around;">
             <div style="display:flex; flex-direction:column; align-items:center; gap:6px;">
               <span style="font-family:'JetBrains Mono',monospace; font-size:12px; color:rgba(46,43,36,.6); text-align:center;">DOSE ms<br><span style="opacity:.5; font-size:9.5px;">glucose pulse</span></span>
@@ -249,7 +261,9 @@
               <input type="number" step="1" value="{{ thrVal }}" onMouseDown="{{ stopProp }}" onInput="{{ setThr }}" style="width:62px; text-align:center; background:rgba(255,255,255,.45); border:1px solid rgba(59,55,47,.2); border-radius:7px; padding:4px; font-family:'JetBrains Mono',monospace; font-size:13px; color:#2e2b24; outline:none;" />
             </div>
           </div>
-          <div style="border-top:1px solid rgba(59,55,47,.12); padding-top:12px;">
+          </sc-if>
+          <sc-if value="{{ isManual }}" hint-placeholder-val="{{ false }}">
+          <div>
             <div style="font-family:'JetBrains Mono',monospace; font-size:11px; letter-spacing:.14em; color:rgba(46,43,36,.5); margin-bottom:11px;">DIRECT CONTROL · pumps · stirrer · light (live)</div>
             <div style="display:flex; justify-content:space-between; gap:8px; align-items:flex-start;">
               <div style="flex:1; display:flex; flex-direction:column; align-items:center; gap:6px;">
@@ -291,6 +305,8 @@
             </div>
             <button onMouseDown="{{ stopProp }}" onClick="{{ recalibrateSensor }}" title="Aim the sensor at white first" style="cursor:pointer; width:100%; margin-top:11px; border:1px solid rgba(59,55,47,.22); border-radius:9px; padding:8px; font-family:'JetBrains Mono',monospace; font-size:12.5px; background:rgba(255,255,255,.4); color:rgba(46,43,36,.8);" style-hover="border-color:rgba(59,55,47,.4);">recalibrate sensor (aim at white) {{ calibTxt }}</button>
           </div>
+          </sc-if>
+          <sc-if value="{{ isAuto }}" hint-placeholder-val="{{ true }}">
           <div style="border-top:1px solid rgba(59,55,47,.12); padding-top:11px;">
             <div style="font-family:'JetBrains Mono',monospace; font-size:12px; color:rgba(46,43,36,.55); margin-bottom:8px;">PREDICTED OUTCOME · world model</div>
             <div style="display:grid; grid-template-columns:1fr 1fr 1fr 1fr; gap:10px; font-family:'JetBrains Mono',monospace;">
@@ -314,6 +330,7 @@
               <button onMouseDown="{{ stopProp }}" onClick="{{ applySolve }}" style="cursor:pointer; flex:none; background:#6f8466; border:none; border-radius:8px; padding:7px 13px; font-family:'JetBrains Mono',monospace; font-size:13.5px; font-weight:600; color:#fbf8f2;" style-hover="background:#566e4b;">apply</button>
             </div>
           </div>
+          </sc-if>
         </div>
       </div>
       </sc-if>
@@ -457,11 +474,36 @@
         </div>
       </div>
       </sc-if>
+      <!-- TEMP NOTES -->
+      <sc-if value="{{ panels.notes.open }}" hint-placeholder-val="{{ false }}">
+      <div style="position:absolute; left:0; top:0; width:{{ panels.notes.w }}; height:{{ panels.notes.h }}; transform:{{ panels.notes.tf }}; z-index:{{ panels.notes.z }}; border-radius:20px; background:linear-gradient(150deg, rgba(254,251,246,.74), rgba(247,242,233,.52)); -webkit-backdrop-filter:blur(15px) saturate(1.3); backdrop-filter:blur(15px) saturate(1.3); border:1px solid rgba(255,255,255,.64); box-shadow:0 26px 54px -28px rgba(70,60,48,.5), inset 0 1px 0 rgba(255,255,255,.88); display:flex; flex-direction:column; overflow:hidden; transition:{{ animTrans }};">
+        <div onMouseDown="{{ panels.notes.resize }}" title="drag to resize" style="position:absolute; right:2px; bottom:2px; width:18px; height:18px; cursor:nwse-resize; z-index:6; border-right:2px solid rgba(59,55,47,.3); border-bottom:2px solid rgba(59,55,47,.3); border-bottom-right-radius:8px;"></div>
+        <div onMouseDown="{{ dragH.notes }}" style="cursor:grab; padding:13px 18px 9px; display:flex; align-items:center; justify-content:space-between;">
+          <span style="font-family:'JetBrains Mono',monospace; font-size:12.5px; letter-spacing:.18em; color:rgba(46,43,36,.55);">TEMP NOTES</span>
+          <button onMouseDown="{{ stopProp }}" onClick="{{ closeH.notes }}" style="cursor:pointer; background:none; border:none; color:rgba(46,43,36,.4); font-size:15px; line-height:1; padding:2px 4px;" style-hover="color:#2e2b24;">×</button>
+        </div>
+        <div style="flex:1; min-height:0; display:flex; flex-direction:column; padding:4px 16px 16px;">
+          <div style="font-family:'JetBrains Mono',monospace; font-size:10.5px; color:#94762f; background:rgba(148,118,47,.1); border:1px solid rgba(148,118,47,.25); border-radius:8px; padding:6px 9px; margin-bottom:9px; line-height:1.45;">⚠ Temporary — these notes live only while this page is open and clear on reload.</div>
+          <div style="display:flex; gap:6px; flex-wrap:wrap; align-items:center; margin-bottom:9px;">
+            <sc-for list="{{ noteTabs }}" as="nt" hint-placeholder-count="3">
+              <div style="display:flex; align-items:center; background:{{ nt.bg }}; border:1px solid {{ nt.border }}; border-radius:8px; overflow:hidden;">
+                <button onMouseDown="{{ stopProp }}" onClick="{{ nt.sel }}" style="cursor:pointer; background:none; border:none; padding:5px 9px; font-family:'JetBrains Mono',monospace; font-size:11.5px; color:{{ nt.color }}; max-width:120px; overflow:hidden; white-space:nowrap; text-overflow:ellipsis;">{{ nt.title }}</button>
+                <button onMouseDown="{{ stopProp }}" onClick="{{ nt.del }}" title="delete note" style="cursor:pointer; background:none; border:none; padding:5px 7px 5px 0; font-family:'JetBrains Mono',monospace; font-size:12px; color:rgba(46,43,36,.35);" style-hover="color:#9c4a3c;">×</button>
+              </div>
+            </sc-for>
+            <button onMouseDown="{{ stopProp }}" onClick="{{ newNote }}" style="cursor:pointer; background:rgba(111,132,102,.14); border:1px solid rgba(111,132,102,.3); border-radius:8px; padding:5px 10px; font-family:'JetBrains Mono',monospace; font-size:11.5px; color:#566e4b;" style-hover="background:rgba(111,132,102,.24);">＋ new</button>
+          </div>
+          <input value="{{ noteTitle }}" onMouseDown="{{ stopProp }}" onInput="{{ setNoteTitle }}" placeholder="Note title" style="background:rgba(255,255,255,.5); border:1px solid rgba(59,55,47,.2); border-radius:8px; padding:8px 10px; font-family:'JetBrains Mono',monospace; font-size:13px; font-weight:600; color:#2e2b24; outline:none; margin-bottom:8px;" />
+          <textarea value="{{ noteBody }}" onMouseDown="{{ stopProp }}" onInput="{{ setNoteBody }}" placeholder="Jot something down…" style="flex:1; min-height:0; resize:none; background:rgba(255,255,255,.45); border:1px solid rgba(59,55,47,.2); border-radius:10px; padding:10px 12px; font-family:'JetBrains Mono',monospace; font-size:13px; line-height:1.55; color:#2e2b24; outline:none;"></textarea>
+        </div>
+      </div>
+      </sc-if>
+
 
       <!-- DOCK RAIL (closed tools) -->
-      <div style="position:absolute; right:10px; top:50%; transform:translateY(-50%); display:flex; flex-direction:column; gap:9px; z-index:55; align-items:flex-end;">
+      <div style="position:absolute; left:10px; top:14px; display:flex; flex-direction:column; gap:9px; z-index:55; align-items:flex-start;">
         <sc-for list="{{ dockTabs }}" as="d" hint-placeholder-count="1">
-          <button onClick="{{ d.h }}" title="open" style="cursor:pointer; display:flex; align-items:center; gap:8px; background:linear-gradient(150deg, rgba(255,254,250,.62), rgba(248,243,234,.34)); -webkit-backdrop-filter:blur(12px); backdrop-filter:blur(12px); border:1px solid rgba(255,255,255,.6); border-radius:11px 0 0 11px; box-shadow:0 12px 28px -16px rgba(70,60,48,.5); padding:9px 13px; font-family:'JetBrains Mono',monospace; font-size:12.5px; letter-spacing:.1em; color:rgba(46,43,36,.72);" style-hover="color:#2e2b24;">
+          <button onClick="{{ d.h }}" title="open" style="cursor:pointer; display:flex; align-items:center; gap:8px; background:linear-gradient(150deg, rgba(255,254,250,.62), rgba(248,243,234,.34)); -webkit-backdrop-filter:blur(12px); backdrop-filter:blur(12px); border:1px solid rgba(255,255,255,.6); border-radius:0 11px 11px 0; box-shadow:0 12px 28px -16px rgba(70,60,48,.5); padding:9px 13px; font-family:'JetBrains Mono',monospace; font-size:12.5px; letter-spacing:.1em; color:rgba(46,43,36,.72);" style-hover="color:#2e2b24;">
             <span style="width:7px; height:7px; border-radius:2px; background:#6f8466;"></span>{{ d.label }}
           </button>
         </sc-for>

@@ -29,10 +29,10 @@ return class Component extends DCLogic {
       {id:'cycles', name:'Cycles per run', expr:'N = (R·60) ÷ T', desc:'How many oscillations fit a run of a given length.', fields:[['Run length','R','min'],['Period','P','s']], fn:v=>v.P?(v.R*60)/v.P:0, unit:'cycles', dp:0},
       {id:'temp', name:'Temperature  °C ⇄ °F', expr:'°F = °C·9/5 + 32', desc:'Convert between Celsius and Fahrenheit — type in either box.', converter:true},
     ];
-    this.panelIds=['swatch','world','narr','manual','calc','ask','runs'];
-    this.labels={swatch:'COLOUR LOG', world:'OSCILLATION', narr:'NARRATION', manual:'MANUAL CONSOLE', calc:'CALCULATOR', ask:'ASK PHAGE', runs:'RUNS'};
+    this.panelIds=['swatch','world','narr','manual','calc','ask','runs','notes'];
+    this.labels={swatch:'COLOUR LOG', world:'OSCILLATION', narr:'NARRATION', manual:'CONSOLE', calc:'CALCULATOR', ask:'ASK PHAGE', runs:'RUNS', notes:'TEMP NOTES'};
     // starting size per panel (px, design space); user-resizable from the corner.
-    this._size={ swatch:[350,460], world:[620,420], narr:[360,420], manual:[560,640], calc:[360,430], ask:[400,420], runs:[350,400] };
+    this._size={ swatch:[350,460], world:[620,420], narr:[360,420], manual:[560,640], calc:[360,430], ask:[400,420], runs:[350,400], notes:[340,420] };
     this.dragH={}; this.closeH={}; this.openH={}; this.resizeH={};
     this.panelIds.forEach(id=>{ this.dragH[id]=this.startDrag(id); this.closeH[id]=()=>this.closePanel(id); this.openH[id]=()=>this.openPanel(id); this.resizeH[id]=this.startResize(id); });
     this.knobCool=this.startKnob('stirrer',0,255); this.knobMoi=this.startKnob('glucoseDoseMs',50,2000); this.knobThr=this.startKnob('ampThreshold',5,95); this.knobLight=this.startKnob('light',0,255);
@@ -46,6 +46,7 @@ return class Component extends DCLogic {
       onLanding:true, running:true, mode:'auto', bumped:false, uiZoom:1.0, live:false,
       // setpoints (UI-owned; the in-browser control loop reads these)
       stirrer:150, glucoseDoseMs:500, ampThreshold:40, targetHalfPeriod:25, solveMode:'period', light:255, calibTxt:'', source:'off',
+      targetBlue:0.7, targetTime:300,
       glucoseOn:false, naohOn:false,
       settingsOpen:false, bleName:'Bioreactor', bleStatus:'', bleKnown:0,
       // measured / derived (flushed from the ingest loop ~10Hz)
@@ -55,13 +56,14 @@ return class Component extends DCLogic {
       stirrerOut:150, glucoseActive:false, naohActive:false, glucosePulses:0, lastPulseT:null,
       hist:[],
       narr:[{txt:'System online. Awaiting first blue↔colorless swing.', kind:'info'}],
-      panels:{ swatch:mk(true,'swatch'), world:mk(true,'world'), narr:mk(true,'narr'), manual:mk(true,'manual'), calc:mk(false,'calc'), ask:mk(true,'ask'), runs:mk(false,'runs') },
+      panels:{ swatch:mk(true,'swatch'), world:mk(true,'world'), narr:mk(true,'narr'), manual:mk(true,'manual'), calc:mk(false,'calc'), ask:mk(true,'ask'), runs:mk(true,'runs'), notes:mk(false,'notes') },
       drag:null, resize:null, stageW:1304, stageH:740,
       calc:{display:'0', acc:null, op:null, fresh:true}, calcTab:'keys',
       eq:{ amp:{}, period:{}, freq:{}, blue:{}, stir:{}, kla:{}, dose:{}, cycles:{}, temp:{} }, eqSel:null,
       chat:[{role:'sys', text:'Ask me about this run — amplitude, period, stalling, or how to drive the oscillation.'}], chatInput:'',
       runs:[],
       captures:[], compareMode:false, compareSel:[], animating:false,
+      notes:[{title:'Note 1', body:''}], noteIdx:0,
       landW:1320, landH:760,
       bodies:[
         {id:'hero', x:920, y:300, vx:0.45, vy:0.35, scale:0.82, kind:'full', spin:21},
@@ -180,7 +182,8 @@ return class Component extends DCLogic {
   // Copy fast-changing instance fields into React state (~10Hz) so the sensor rate
   // is decoupled from render cost.
   flush(){
-    const src=(this._ble==='connected')?'hub':'off';
+    // device/bluetooth status comes straight from the backend's `ble` field.
+    const b=this._ble; const src=(b===true||(typeof b==='string'&&/conn|on|ready|live|true/i.test(b)))?'hub':'off';
     this.setState({ t:this._t||0, blue:this._blue, rgb:this._rgb.slice(), lux:this._lux, amp:this._amp, period:this._period, halfPeriod:this._halfP, phase:this._phase, cycles:this._cycles, stallRisk:this._stallRisk||0, stirrerOut:this._stirrerOut, glucoseActive:this._glucoseActive, naohActive:this._naohActive, glucosePulses:this._glucosePulses, lastPulseT:this._lastPulseT, hist:this._hist.slice(), narr:this._narr.slice(), runs:this._runs.slice(), mode:this._mode||this.state.mode, source:src });
   }
   componentDidUpdate(){
@@ -296,9 +299,12 @@ return class Component extends DCLogic {
   // shorter panels fill the gaps. Minimizes total vertical space, no overlap.
   packLayout(panels, contentW){
     const g=14, m=14, right=contentW-m, P={...panels};
-    const open=this.panelIds.filter(id=>P[id]&&P[id].open);
-    const order=open.slice().sort((a,b)=>(P[b].h-P[a].h)||(P[b].w-P[a].w)||(this.panelIds.indexOf(a)-this.panelIds.indexOf(b)));
     const placed=[];
+    // RUNS is pinned to the top-right corner and treated as an obstacle so the
+    // greedy pack flows the other panels around it.
+    if(P.runs&&P.runs.open){ const rx=Math.max(m, contentW-P.runs.w-m); P.runs={...P.runs, x:rx, y:m}; placed.push({x:rx, y:m, w:P.runs.w, h:P.runs.h}); }
+    const open=this.panelIds.filter(id=>P[id]&&P[id].open&&id!=='runs');
+    const order=open.slice().sort((a,b)=>(P[b].h-P[a].h)||(P[b].w-P[a].w)||(this.panelIds.indexOf(a)-this.panelIds.indexOf(b)));
     const yAt=(x,w)=>{ let y=m; placed.forEach(r=>{ if(x < r.x+r.w+g-0.01 && x+w > r.x-g+0.01) y=Math.max(y, r.y+r.h+g); }); return y; };
     order.forEach(id=>{ const w=P[id].w, h=P[id].h;
       let xs=[m]; placed.forEach(r=>{ xs.push(r.x); xs.push(r.x+r.w+g); });
@@ -358,10 +364,10 @@ return class Component extends DCLogic {
   scrollRef=(el)=>{ this._scroll=el; };
   chatRef=(el)=>{ this._chatEl=el; };
 
-  closePanel(id){ this.setState(s=>{ const P={...s.panels}; P[id]={...P[id], open:false}; return { panels:P }; }); }
+  closePanel(id){ const w=this.deskW(); this.setState(s=>{ const P={...s.panels}; P[id]={...P[id], open:false}; return { panels:this.packLayout(P, w), animating:true }; }); this.scheduleAnimEnd(); }
   openPanel(id){ const w=this.deskW(); this.setState(s=>{ const P={...s.panels}; P[id]={...P[id], open:true}; return { panels:this.packLayout(P, w), animating:true }; }); this.scheduleAnimEnd(); }
 
-  enter=()=>{ const w=this.deskW(); this.setState(s=>{ const P={...s.panels}; this.panelIds.forEach(id=>{ if(id!=='calc'&&id!=='runs') P[id]={...P[id], open:true}; }); return { onLanding:false, panels:this.packLayout(P, w), animating:true }; }, ()=>this.measure()); this.scheduleAnimEnd(); };
+  enter=()=>{ const w=this.deskW(); this.setState(s=>{ const P={...s.panels}; this.panelIds.forEach(id=>{ if(id!=='calc'&&id!=='notes') P[id]={...P[id], open:true}; }); return { onLanding:false, panels:this.packLayout(P, w), animating:true }; }, ()=>this.measure()); this.scheduleAnimEnd(); };
   watchRace=()=>{ if(this._be) this._be.setMode('auto'); const w=this.deskW(); this.setState(s=>{ const keep=new Set(['reactors','swatch','world','narr']); const P={...s.panels}; this.panelIds.forEach(id=>{ P[id]={...P[id], open:keep.has(id)}; }); return { onLanding:false, running:true, mode:'auto', panels:this.packLayout(P, w), animating:true }; }, ()=>this.measure()); this.scheduleAnimEnd(); };
   toggleRun=()=>this.setState(s=>({ running:!s.running }));
   setAuto=()=>{ if(this._be) this._be.setMode('auto'); this.setState({ mode:'auto' }); };
@@ -377,6 +383,12 @@ return class Component extends DCLogic {
   // ---- colour capture log ----------------------------------------------------
   captureColor=()=>{ const s=this.state; const snap={ rgb:s.rgb.slice(), color:'rgb('+s.rgb.join(',')+')', blue:Math.round(s.blue*100), amp:Math.round(s.amp*100), period:s.period.toFixed(1), phase:s.phase, cycles:s.cycles, stirrer:Math.round(s.stirrerOut/255*100), t:s.t.toFixed(1), run:s.runIndex }; this.setState(st=>({ captures:[snap, ...st.captures].slice(0,60) })); };
   clearCaptures=()=>this.setState({ captures:[], compareSel:[], compareMode:false });
+  // ---- temp notes (in-memory only; cleared on reload) -----------------------
+  newNote=()=>this.setState(s=>({ notes:s.notes.concat([{title:'Note '+(s.notes.length+1), body:''}]), noteIdx:s.notes.length }));
+  selectNote=(i)=>()=>this.setState({ noteIdx:i });
+  setNoteTitle=(e)=>{ const v=e.target.value; this.setState(s=>{ const n=s.notes.slice(); n[s.noteIdx]={...n[s.noteIdx], title:v}; return { notes:n }; }); };
+  setNoteBody=(e)=>{ const v=e.target.value; this.setState(s=>{ const n=s.notes.slice(); n[s.noteIdx]={...n[s.noteIdx], body:v}; return { notes:n }; }); };
+  deleteNote=(i)=>()=>this.setState(s=>{ if(s.notes.length<=1) return { notes:[{title:'Note 1', body:''}], noteIdx:0 }; const n=s.notes.slice(); n.splice(i,1); return { notes:n, noteIdx:Math.max(0,Math.min(s.noteIdx, n.length-1)) }; });
   toggleCompare=()=>this.setState(s=>({ compareMode:!s.compareMode, compareSel:[] }));
   toggleCompareSel=(i)=>this.setState(s=>{ const has=s.compareSel.indexOf(i); let sel; if(has>=0) sel=s.compareSel.filter(x=>x!==i); else sel=s.compareSel.concat([i]).slice(-3); return { compareSel:sel }; });
   // ---- equation library ------------------------------------------------------
@@ -401,6 +413,10 @@ return class Component extends DCLogic {
   setMoi=(e)=>{ const v=parseFloat(e.target.value); if(!isNaN(v)){ const cv=Math.max(50,Math.min(2000,Math.round(v))); if(this._be) this._be.setModelParams({glucose_dose_ms:cv}); this.setState({ glucoseDoseMs:cv }); } };
   setThr=(e)=>{ const v=parseFloat(e.target.value); if(!isNaN(v)){ const cv=Math.max(5,Math.min(95,Math.round(v))); if(this._be) this._be.setModelParams({amp_threshold:cv/100}); this.setState({ ampThreshold:cv }); } };
   setTarget=(e)=>{ const v=parseFloat(e.target.value); if(!isNaN(v)){ const cv=Math.max(5,Math.min(90,v)); if(this._be) this._be.setModelParams({target_half_period:cv}); this.setState({ targetHalfPeriod:cv }); } };
+  // AUTO targets for the RL policy: reach a target blue intensity by a target time.
+  // GoalModel params (backend/control/goal_model.py): goal_blue 0..1, ideal_time abs seconds.
+  setTargetBlue=(e)=>{ const v=parseFloat(e.target.value); if(!isNaN(v)){ const cv=Math.max(0,Math.min(1,v/100)); if(this._be) this._be.setModelParams({goal_blue:cv}); this.setState({ targetBlue:cv, mode:'auto' }); } };
+  setTargetTime=(e)=>{ const v=parseFloat(e.target.value); if(!isNaN(v)){ const cv=Math.max(0,v); if(this._be) this._be.setModelParams({ideal_time:cv}); this.setState({ targetTime:cv }); } };
   setSolveEq=()=>this.setState({ solveMode:'period' });
   setSolveEnergy=()=>this.setState({ solveMode:'stir' });
   applySolve=()=>{ const b=this.solve(this.state.targetHalfPeriod, this.state.solveMode); this._stirrerOut=b.stir; if(this.state.live) this.cmdSet('set_pwm','stirrer',b.stir); this.setState({ mode:'manual', stirrer:b.stir }); };
@@ -600,13 +616,15 @@ return class Component extends DCLogic {
       scrollRef:this.scrollRef, stageTransform:s.uiZoom===1?'none':'scale('+s.uiZoom+')', spacerW:(s.stageW*s.uiZoom).toFixed(0)+'px', spacerH:(contentHpx*s.uiZoom).toFixed(0)+'px', stageWpx:s.stageW.toFixed(0)+'px', stageHpx:contentHpx.toFixed(0)+'px',
       zoomTxt:Math.round(s.uiZoom*100)+'%', zoomIn:this.zoomIn, zoomOut:this.zoomOut, zoomReset:this.zoomReset, tidyDesk:this.tidyDesk,
       toggleRun:this.toggleRun, remelt:this.remelt, bump:this.bump, manualFire:this.manualFire,
-      runLabel:s.running?'PAUSE':'RUN', runLabel2:'RUN '+pad(s.runIndex),
+      runLabel:s.running?'PAUSE':'RUN', runLabel2:'RUN '+pad(s.runIndex), runIcon:s.running?'‖':'►',
       statusTxt:s.running?'LIVE':'PAUSED', statusDot:s.running?'#6f8466':'#94762f', clockTxt:s.t.toFixed(1)+'s',
-      sourceTxt:s.source==='hub'?'⬡ HARDWARE':(s.live?'◌ NO DEVICE':'◌ OFFLINE'), sourceColor:s.source==='hub'?'#566e4b':'rgba(46,43,36,.45)',
+      sourceTxt:s.source==='hub'?'⌁ CONNECTED':'◌ OFFLINE', sourceColor:s.source==='hub'?'#566e4b':'rgba(46,43,36,.45)',
+      isAuto:s.mode==='auto', isManual:s.mode==='manual',
+      targetBlueVal:Math.round(s.targetBlue*100), targetBlueFill:(s.targetBlue*100).toFixed(0)+'%', setTargetBlue:this.setTargetBlue, targetTimeVal:s.targetTime, setTargetTime:this.setTargetTime,
       bleConnect:this.bleConnect, bleLabel:s.live?'⌁ connected':'⌁ connect', bleBg:s.live?'rgba(86,110,75,.18)':'rgba(111,132,102,.12)', bleColor:'#566e4b',
       openSettings:this.openSettings, closeSettings:this.closeSettings, settingsOpen:s.settingsOpen,
       bleName:s.bleName, setBleName:this.setBleName, bleReconnect:this.bleReconnect, bleDisconnect:this.bleDisconnect,
-      bleConnected:s.live, bleStateTxt:(s.live?(s.source==='hub'?'backend + device':'backend (no device)'):'offline'), bleKnownTxt:(this._be?this._be.url:''),
+      bleConnected:s.source==='hub', bleStateTxt:(s.source==='hub'?'connected':'offline'), bleKnownTxt:(this._be?this._be.url:''),
       bleSupTxt:'',
       panels:pf, dragH:this.dragH, closeH:this.closeH, stopProp:(e)=>e.stopPropagation(), dockTabs,
       animTrans:s.animating?'transform .5s cubic-bezier(.4,0,.2,1), width .5s cubic-bezier(.4,0,.2,1), height .5s cubic-bezier(.4,0,.2,1)':'none',
@@ -651,6 +669,8 @@ return class Component extends DCLogic {
       calcKeysColor:s.calcTab==='keys'?'#2e2b24':'rgba(46,43,36,.4)', calcFxColor:s.calcTab==='fx'?'#2e2b24':'rgba(46,43,36,.4)',
       chatMsgs, chatInput:s.chatInput, setChatInput:this.setChatInput, chatKey:this.chatKey, sendChat:this.sendChat, chatRef:this.chatRef,
       runsList, runsEmpty, addRun:this.addRun,
+      noteTabs:s.notes.map((n,i)=>({ title:(n.title||('Note '+(i+1))), sel:this.selectNote(i), del:this.deleteNote(i), bg:i===s.noteIdx?'rgba(111,132,102,.18)':'rgba(255,255,255,.34)', color:i===s.noteIdx?'#2e2b24':'rgba(46,43,36,.6)', border:i===s.noteIdx?'#6f8466':'rgba(59,55,47,.14)' })),
+      noteTitle:(s.notes[s.noteIdx]||{}).title||'', noteBody:(s.notes[s.noteIdx]||{}).body||'', setNoteTitle:this.setNoteTitle, setNoteBody:this.setNoteBody, newNote:this.newNote,
       runNameTxt:s.runName, runColorVal:s.runColor, setRunName:this.setRunName, openColor:this.openColor, colorOpen:s.colorOpen,
       colorSwatches:this.runPalette.concat(this.huePalette).map(hex=>({ hex, pick:()=>this.pickRunColor(hex) })),
       glowColor:this.hexToRgba(s.runColor,0.12), glowColor2:this.hexToRgba(s.runColor,0.04),
