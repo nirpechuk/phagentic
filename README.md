@@ -1,5 +1,9 @@
 # PHAGENTIC
 
+<img width="3201" height="1794" alt="Screenshot from 2026-06-21 09-11-00" src="https://github.com/user-attachments/assets/c704267b-5678-4d9a-9430-c6f44100d4f9" />
+
+
+
 A closed-loop controller for the **Blue Bottle** oscillating reaction. PHAGENTIC
 watches the live colour of the solution (blue ⇄ colorless), estimates the
 oscillation state — amplitude, period, phase, stall risk — and drives the
