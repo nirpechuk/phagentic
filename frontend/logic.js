@@ -43,7 +43,7 @@ return class Component extends DCLogic {
     this._defaultConfig={ mosfets:[{name:'Glucose Pump',pin:18,mode:'digital'},{name:'NaOH Pump',pin:19,mode:'digital'},{name:'Stirrer',pin:23,mode:'pwm'}], sensor_light:{pin:25} };
     this._pins=this.pinsFromConfig(this._defaultConfig);   // sets this._pins + this._names from config
     this.state={
-      onLanding:true, running:true, mode:'auto', bumped:false, uiZoom:1.0, live:false,
+      onLanding:true, running:true, mode:'auto', cycling:false, bumped:false, uiZoom:1.0, live:false,
       // setpoints (UI-owned; the in-browser control loop reads these)
       stirrer:150, glucoseDoseMs:500, ampThreshold:40, targetHalfPeriod:25, solveMode:'period', light:255, calibTxt:'', source:'off',
       targetBlue:0.7, targetTime:300,
@@ -66,7 +66,7 @@ return class Component extends DCLogic {
       notes:[{title:'Note 1', body:''}], noteIdx:0,
       landW:1320, landH:760,
       bodies:[
-        {id:'hero', x:920, y:300, vx:0.45, vy:0.35, scale:0.82, kind:'full', spin:21},
+        {id:'hero', x:920, y:300, vx:0.45, vy:0.35, scale:1.23, kind:'full', spin:21},
       ],
     };
     this.resetProc(0);
@@ -184,7 +184,10 @@ return class Component extends DCLogic {
   flush(){
     // device/bluetooth status comes straight from the backend's `ble` field.
     const b=this._ble; const src=(b===true||(typeof b==='string'&&/conn|on|ready|live|true/i.test(b)))?'hub':'off';
-    this.setState({ t:this._t||0, blue:this._blue, rgb:this._rgb.slice(), lux:this._lux, amp:this._amp, period:this._period, halfPeriod:this._halfP, phase:this._phase, cycles:this._cycles, stallRisk:this._stallRisk||0, stirrerOut:this._stirrerOut, lightOut:this._lightOut, glucoseActive:this._glucoseActive, naohActive:this._naohActive, glucosePulses:this._glucosePulses, lastPulseT:this._lastPulseT, hist:this._hist.slice(), narr:this._narr.slice(), runs:this._runs.slice(), mode:this._mode||this.state.mode, source:src });
+    // state.mode is the UI view (auto / manual) and is user-owned — set only by the
+    // AUTO/MANUAL toggle and LAUNCH. We deliberately do NOT sync it from the backend
+    // mode here, so live state frames can't flip the view or hide the auto panel.
+    this.setState({ t:this._t||0, blue:this._blue, rgb:this._rgb.slice(), lux:this._lux, amp:this._amp, period:this._period, halfPeriod:this._halfP, phase:this._phase, cycles:this._cycles, stallRisk:this._stallRisk||0, stirrerOut:this._stirrerOut, lightOut:this._lightOut, glucoseActive:this._glucoseActive, naohActive:this._naohActive, glucosePulses:this._glucosePulses, lastPulseT:this._lastPulseT, hist:this._hist.slice(), narr:this._narr.slice(), runs:this._runs.slice(), source:src });
   }
   componentDidUpdate(){
     if(!this._chatEl) return;
@@ -283,7 +286,7 @@ return class Component extends DCLogic {
         vx+=Math.sin((Date.now()/2200)+x*0.01)*0.008; vy+=Math.cos((Date.now()/2500)+y*0.01)*0.008;
         const sp=Math.hypot(vx,vy), cap=1.1; if(sp>cap){ vx=vx/sp*cap; vy=vy/sp*cap; }
         if(sp<0.18){ const k=0.18/(sp||1); vx*=k; vy*=k; }
-        x+=vx; y+=vy;
+        x+=vx*2; y+=vy*2;
         const loX=o.id==='hero'?Math.max(padX,W*0.46):padX, hiX=Math.max(loX,W-padX);
         const loY=padTop, hiY=Math.max(loY,H-padBot);
         if(x<loX){ x=loX; vx=Math.abs(vx); } if(x>hiX){ x=hiX; vx=-Math.abs(vx); }
@@ -368,12 +371,17 @@ return class Component extends DCLogic {
   openPanel(id){ const w=this.deskW(); this.setState(s=>{ const P={...s.panels}; P[id]={...P[id], open:true}; return { panels:this.packLayout(P, w), animating:true }; }); this.scheduleAnimEnd(); }
 
   enter=()=>{ const w=this.deskW(); this.setState(s=>{ const P={...s.panels}; this.panelIds.forEach(id=>{ if(id!=='calc'&&id!=='notes') P[id]={...P[id], open:true}; }); return { onLanding:false, panels:this.packLayout(P, w), animating:true }; }, ()=>this.measure()); this.scheduleAnimEnd(); };
-  watchRace=()=>{ if(this._be){ this._be.setModel('goal_blue'); this._be.setMode('ml'); } const w=this.deskW(); this.setState(s=>{ const keep=new Set(['swatch','world','narr','manual','actuators']); const P={...s.panels}; this.panelIds.forEach(id=>{ P[id]={...P[id], open:keep.has(id)}; }); return { onLanding:false, running:true, mode:'auto', panels:this.packLayout(P, w), animating:true }; }, ()=>this.measure()); this.scheduleAnimEnd(); };
-  toggleRun=()=>this.setState(s=>({ running:!s.running }));
-  // AUTO = the goal-seeking model. Select goal_blue and enter ML mode so the
-  // target-hue/time inputs actually drive the controller (backend/control/goal_model.py).
-  setAuto=()=>{ if(this._be){ this._be.setModel('goal_blue'); this._be.setMode('ml'); } this.setState({ mode:'auto' }); };
-  setManual=()=>{ if(this._be) this._be.setMode('manual'); this.setState({ mode:'manual' }); };
+  // Entering auto is passive — it just shows the goal inputs. The model does not
+  // start until LAUNCH (startCycling). Backend stays idle (manual) until then.
+  watchRace=()=>{ const w=this.deskW(); this.setState(s=>{ const keep=new Set(['swatch','world','narr','manual','actuators']); const P={...s.panels}; this.panelIds.forEach(id=>{ P[id]={...P[id], open:keep.has(id)}; }); return { onLanding:false, running:true, mode:'auto', panels:this.packLayout(P, w), animating:true }; }, ()=>this.measure()); this.scheduleAnimEnd(); };
+  // Play / pause actually stops & resumes the model. Pause → backend 'manual'
+  // (holds outputs); resume → re-enter 'ml' (the model instance + its goal persist;
+  // we must NOT re-send setModel, which would build a fresh model and wipe the goal).
+  toggleRun=()=>{ const running=!this.state.running; if(this._be){ if(!running) this._be.setMode('manual'); else if(this.state.cycling) this._be.setMode('ml'); } this.setState({ running }); this.pushNarr(running?(this.state.cycling?'▶ Model resumed.':'▶ Resumed.'):'⏸ Paused — model holding outputs.', running?'info':'warn'); };
+  // AUTO is just the view; it does not engage the model (LAUNCH does).
+  setAuto=()=>this.setState({ mode:'auto' });
+  // MANUAL stops the model and hands you direct control.
+  setManual=()=>{ if(this._be) this._be.setMode('manual'); this.setState({ mode:'manual', cycling:false }); };
   zoomIn=()=>this.setState(s=>({ uiZoom:Math.min(1.4,+(s.uiZoom+0.08).toFixed(2)) }), ()=>this.measure());
   zoomOut=()=>this.setState(s=>({ uiZoom:Math.max(0.8,+(s.uiZoom-0.08).toFixed(2)) }), ()=>this.measure());
   zoomReset=()=>this.setState({ uiZoom:1.0 }, ()=>this.measure());
@@ -422,7 +430,7 @@ return class Component extends DCLogic {
   // Launch: engage the goal model, zero the run clock, and commit the goal.
   // ideal_time is absolute seconds since run start, so after the reset it reads
   // as "reach target blue this many seconds from launch".
-  startCycling=()=>{ if(this._be){ this._be.setModel('goal_blue'); this._be.setMode('ml'); this._be.resetRun(); this._be.setModelParams({ goal_blue:this.state.targetBlue, ideal_time:this.state.targetTime }); } this.setState({ mode:'auto', running:true }); };
+  startCycling=()=>{ if(this._be){ this._be.setModel('goal_blue'); this._be.setMode('ml'); this._be.resetRun(); this._be.setModelParams({ goal_blue:this.state.targetBlue, ideal_time:this.state.targetTime }); } this.setState({ mode:'auto', running:true, cycling:true }); this.pushNarr('▶ Launched — driving to target hue.', 'win'); };
   setSolveEq=()=>this.setState({ solveMode:'period' });
   setSolveEnergy=()=>this.setState({ solveMode:'stir' });
   applySolve=()=>{ const b=this.solve(this.state.targetHalfPeriod, this.state.solveMode); this._stirrerOut=b.stir; if(this.state.live) this.cmdSet('set_pwm','stirrer',b.stir); this.setState({ mode:'manual', stirrer:b.stir }); };
