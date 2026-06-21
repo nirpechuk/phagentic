@@ -555,18 +555,19 @@ return class Component extends DCLogic {
   setThr=(e)=>{ const v=parseFloat(e.target.value); if(!isNaN(v)){ const cv=Math.max(5,Math.min(95,Math.round(v))); if(this._be) this._be.setModelParams({amp_threshold:cv/100}); this.setState({ ampThreshold:cv }); } };
   setTarget=(e)=>{ const v=parseFloat(e.target.value); if(!isNaN(v)){ const cv=Math.max(5,Math.min(90,v)); if(this._be) this._be.setModelParams({target_half_period:cv}); this.setState({ targetHalfPeriod:cv }); } };
   // AUTO targets for the RL policy: reach a target blue intensity by a target time.
-  // GoalModel params (backend/control/goal_model.py): goal_blue 0..1, ideal_time abs seconds.
-  setTargetBlue=(e)=>{ const v=parseFloat(e.target.value); if(!isNaN(v)){ const cv=Math.max(0,Math.min(1,v/100)); if(this._be) this._be.setModelParams({goal_blue:cv}); this.setState({ targetBlue:cv, targetPhage:this.fmtPhageInput(this.sliderToPhage(cv*10)), mode:'auto' }); } };
+  // targetBlue (0..1) is the PEAK blue the amplitude controller cycles up to before
+  // releasing back to ~0 (backend param target_amplitude). Also kept as goal_blue
+  // for the hue controllers. The peak↔colourless swing IS the oscillation.
+  setTargetBlue=(e)=>{ const v=parseFloat(e.target.value); if(!isNaN(v)){ const cv=Math.max(0,Math.min(1,v/100)); if(this._be) this._be.setModelParams({target_amplitude:cv, goal_blue:cv}); this.setState({ targetBlue:cv, targetPhage:this.fmtPhageInput(this.sliderToPhage(cv*10)), mode:'auto' }); } };
   // Target colour expressed as a bacteriophage count (same mapping as the calculator's
   // Phage ⇄ blue): targetBlue is the 0–1 blue level, so P = 10^(12·targetBlue) − 1.
-  setTargetPhage=(e)=>{ const raw=e.target.value, n=parseFloat(raw); if(raw===''||isNaN(n)||n<0){ this.setState({ targetPhage:raw }); return; } const cv=Math.max(0,Math.min(1, this.phageToSlider(n)/10)); if(this._be) this._be.setModelParams({goal_blue:cv}); this.setState({ targetPhage:raw, targetBlue:cv, mode:'auto' }); };
-  // targetTime is the desired full-cycle PERIOD (s) — the heuristic locks the
-  // oscillation cadence to it (backend clamps 6..120). Not a one-shot deadline.
-  setTargetTime=(e)=>{ const v=parseFloat(e.target.value); if(!isNaN(v)){ const cv=Math.max(6,Math.min(120,v)); if(this._be) this._be.setModelParams({target_period:cv}); this.setState({ targetTime:cv }); } };
-  // Launch: engage the goal model, zero the run clock, and commit the goal.
-  // ideal_time is absolute seconds since run start, so after the reset it reads
-  // as "reach target blue this many seconds from launch".
-  startCycling=()=>{ if(this._be){ this._be.setModel('goal_blue'); this._be.setMode('ml'); this._be.resetRun(); this._be.setModelParams({ goal_blue:this.state.targetBlue, target_period:this.state.targetTime }); } this.setState({ mode:'auto', running:true, cycling:true }); this.pushNarr('▶ Launched — cycling at '+this.state.targetTime+'s period.', 'win'); };
+  setTargetPhage=(e)=>{ const raw=e.target.value, n=parseFloat(raw); if(raw===''||isNaN(n)||n<0){ this.setState({ targetPhage:raw }); return; } const cv=Math.max(0,Math.min(1, this.phageToSlider(n)/10)); if(this._be) this._be.setModelParams({target_amplitude:cv, goal_blue:cv}); this.setState({ targetPhage:raw, targetBlue:cv, mode:'auto' }); };
+  // targetTime is vestigial under amplitude control (period is emergent — set by the
+  // reaction's reduction rate, not dialable). Kept so the legacy field stays inert.
+  setTargetTime=(e)=>{ const v=parseFloat(e.target.value); if(!isNaN(v)){ const cv=Math.max(6,Math.min(120,v)); this.setState({ targetTime:cv }); } };
+  // Launch: engage the amplitude controller, zero the run clock, and commit the
+  // target peak. The relay then cycles blue up to it and back down to ~colourless.
+  startCycling=()=>{ if(this._be){ this._be.setModel('amplitude_lock'); this._be.setMode('ml'); this._be.resetRun(); this._be.setModelParams({ target_amplitude:this.state.targetBlue }); } this.setState({ mode:'auto', running:true, cycling:true }); this.pushNarr('▶ Launched — cycling blue '+Math.round(this.state.targetBlue*100)+'% ⇄ colourless.', 'win'); };
   setSolveEq=()=>this.setState({ solveMode:'period' });
   setSolveEnergy=()=>this.setState({ solveMode:'stir' });
   applySolve=()=>{ const b=this.solve(this.state.targetHalfPeriod, this.state.solveMode); this._stirrerOut=b.stir; if(this.state.live) this.cmdSet('set_pwm','stirrer',b.stir); this.setState({ mode:'manual', stirrer:b.stir }); };

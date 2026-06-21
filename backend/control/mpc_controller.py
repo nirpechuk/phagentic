@@ -14,7 +14,8 @@ import json
 import os
 
 from backend.analysis.signal import clamp
-from backend.estimator.state_estimator import CleanState
+from backend.control.model import ControlDecision
+from backend.estimator.state_estimator import MIXER_PWM, CleanState
 from backend.sim.bluebottle_ode import DEFAULT_PARAMS, STIR_LEVEL, initial_state, rk4_step
 from backend.sim.fit import FITTED_PATH
 from backend.sim.rollout import blue_at, rollout
@@ -90,12 +91,12 @@ class MPCController:
         self._y[0] += self.observer_gain * (m_obs - self._y[0])
 
     # ── decision ──────────────────────────────────────────────────────────────
-    def decide(self, c: CleanState) -> tuple[int, bool, bool]:
+    def decide(self, c: CleanState) -> ControlDecision:
         self._observe(c)
 
         if c.goal_blue is None or c.time_remaining is None:
             # no goal: sustain — mid mixer, feed only if amplitude is collapsing
-            return 2, (c.amplitude < 0.15 and c.cycle_event), False
+            return ControlDecision(MIXER_PWM[2], c.amplitude < 0.15 and c.cycle_event, False)
 
         # blue at the deadline (clamped into the horizon)
         t_target = clamp(c.time_remaining, 0.0, self.horizon_s)
@@ -112,7 +113,7 @@ class MPCController:
             + self.switch_penalty * (mx != c.mixer_level),
         )
         if abs(predict(best_mix, False, False) - c.goal_blue) <= self.goal_tol:
-            return best_mix, False, False     # mixing alone suffices → no pumps, no volume added
+            return ControlDecision(MIXER_PWM[best_mix], False, False)  # mixing alone suffices
 
         # Stage 2 — mixing can't reach the goal: allow pumps, but pay for the volume.
         best_cost = None
@@ -126,4 +127,5 @@ class MPCController:
                     cost += self.glucose_penalty * glucose + self.naoh_penalty * naoh
                     if best_cost is None or cost < best_cost:
                         best_cost, best_action = cost, (mixer, glucose, naoh)
-        return best_action
+        mixer, glucose, naoh = best_action
+        return ControlDecision(MIXER_PWM[mixer], glucose, naoh)

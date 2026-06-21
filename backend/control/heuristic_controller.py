@@ -1,10 +1,15 @@
-"""Phase-aware heuristic scheduler — Layer 2, Phase 2 (no dependencies).
+"""Phase-aware heuristic scheduler for the **hue** objective — Layer 2, Phase 2.
 
-Consumes only ``CleanState`` (the firewall), so it has no sim-to-real gap. It
-treats the objective as scheduling on a known oscillator: from the cleaned
-phase/period/amplitude it predicts where ``goal_blue`` will be crossed and nudges
-the mixer to land that crossing on the deadline. Glucose feeds the reaction when
-amplitude decays; NaOH supports pH only when the oscillation is clearly stalling.
+Drives the reaction to a target blue intensity (``goal_blue``) by a deadline
+(``time_remaining``). Consumes only ``CleanState`` (the firewall), so it has no
+sim-to-real gap: from the cleaned phase/period/amplitude it predicts where
+``goal_blue`` will be crossed and nudges the mixer to land that crossing on the
+deadline. Glucose feeds the reaction when amplitude decays; NaOH supports pH only
+when the oscillation is clearly stalling.
+
+To make the reaction oscillate (cycle blue peak ⇄ colourless) use
+``AmplitudeController`` instead — a relay + PID that forces the swing, whereas this
+scheduler works in discrete mixer levels for the hue-by-deadline objective.
 
 Chemistry intuition: stirring → dissolved O2 → oxidises leuco-MB to blue (and
 speeds the cycle); glucose is the reductant reservoir (drives colourless,
@@ -12,12 +17,8 @@ sustains amplitude); NaOH sets pH. Higher mixer ⇒ faster phase advance + bluer
 """
 import math
 
-from backend.estimator.state_estimator import CleanState
-
-# Nominal full-cycle period (s) each discrete mixer level settles to, from the
-# project's stir→period model (period ≈ 60 − 44·PWM/255, PWM = {0, 90, 160, 255};
-# mirrors frontend predict()). Used as feed-forward for period regulation.
-_LEVEL_PERIOD = (60.0, 44.5, 32.4, 16.0)
+from backend.control.model import ControlDecision
+from backend.estimator.state_estimator import MIXER_PWM, CleanState
 
 
 def _wrap_pi(x: float) -> float:
@@ -38,9 +39,6 @@ class HeuristicScheduler:
         # phase-correction → mixer bands (correction > 0 means "advance faster")
         self.fast_thresh = 0.25
         self.slow_thresh = -0.25
-        # period lock: trim the feed-forward mixer when live period drifts past
-        # this fraction of the target (covers stir→period model error).
-        self.period_tol = 0.08
 
     # ── params (merged flat into GoalModel.get_params) ────────────────────────
     def get_params(self) -> dict:
@@ -48,7 +46,6 @@ class HeuristicScheduler:
             "amp_floor": self.amp_floor,
             "band_margin": self.band_margin,
             "naoh_stall_thresh": self.naoh_stall_thresh,
-            "period_tol": self.period_tol,
         }
 
     def set_params(self, p: dict) -> None:
@@ -58,22 +55,12 @@ class HeuristicScheduler:
             self.band_margin = max(0.0, min(0.5, float(p["band_margin"])))
         if "naoh_stall_thresh" in p:
             self.naoh_stall_thresh = max(0.0, min(1.0, float(p["naoh_stall_thresh"])))
-        if "period_tol" in p:
-            self.period_tol = max(0.0, min(0.5, float(p["period_tol"])))
 
     def reset(self) -> None:
         pass  # stateless
 
     # ── decision ──────────────────────────────────────────────────────────────
-    def decide(self, c: CleanState) -> tuple[int, bool, bool]:
-        """Return (mixer_level 0..3, glucose_pulse?, naoh_pulse?)."""
-        # Period lock takes precedence: mixing is the single speed lever, so a
-        # requested cadence owns the mixer. Hue (goal_blue) can't be steered
-        # independently here; pumps still rescue a dying/stalling reaction.
-        if c.target_period and c.target_period > 0.0:
-            dying = c.amplitude < self.amp_floor and c.cycle_event
-            return self._mixer_for_period(c.target_period, c.period), dying, self._naoh(c)
-
+    def decide(self, c: CleanState) -> ControlDecision:
         if c.goal_blue is None or c.time_remaining is None:
             return self._sustain(c)
 
@@ -85,9 +72,9 @@ class HeuristicScheduler:
         # Goal outside the current oscillation band → reach for it with O2 first
         # (mixing is the lever); only feed glucose if amplitude is also collapsing.
         if c.goal_blue > hi + self.band_margin:
-            return 3, dying, self._naoh(c)              # bluer: max O2 (+ fuel only if dying)
+            return self._decision(3, dying, c)          # bluer: max O2 (+ fuel only if dying)
         if c.goal_blue < lo - self.band_margin:
-            return 0, dying, self._naoh(c)              # more colourless: cut O2 (+ fuel only if dying)
+            return self._decision(0, dying, c)          # more colourless: cut O2 (+ fuel only if dying)
 
         # Goal inside the band → pure timing. Find the phase that yields goal_blue
         # (blue(φ) = baseline − (amp/2)·cos φ) and steer to hit it at the deadline.
@@ -96,7 +83,7 @@ class HeuristicScheduler:
 
         if c.period <= 0.0:
             # not oscillating yet: drive mid, seed fuel if stalling
-            return 2, c.stall_risk > 0.3, self._naoh(c)
+            return self._decision(2, c.stall_risk > 0.3, c)
 
         omega = 2.0 * math.pi / c.period
         phi_deadline = c.phase_angle + omega * max(c.time_remaining, 0.0)
@@ -110,32 +97,17 @@ class HeuristicScheduler:
         # Normalize by the phase we can still influence over the remaining time.
         span = max(omega * max(c.time_remaining, c.period), 1e-3)
         correction = best_dphi / span                    # >0 behind (speed up), <0 ahead (slow down)
-        mixer = self._mixer_from_correction(correction)
-
         # timing is handled purely by mixing; glucose only if the reaction is dying
-        return mixer, dying, self._naoh(c)
+        return self._decision(self._mixer_from_correction(correction), dying, c)
 
     # ── helpers ─────────────────────────────────────────────────────────────--
-    def _sustain(self, c: CleanState) -> tuple[int, bool, bool]:
+    def _decision(self, mixer: int, glucose: bool, c: CleanState) -> ControlDecision:
+        return ControlDecision(MIXER_PWM[mixer], glucose, self._naoh(c))
+
+    def _sustain(self, c: CleanState) -> ControlDecision:
         """No goal set: hold a healthy oscillation (mirrors the PI baseline)."""
         glucose = (c.amplitude < self.amp_floor and c.cycle_event) or c.stall_risk > 0.6
-        return 2, glucose, self._naoh(c)
-
-    def _mixer_for_period(self, target_period: float, measured_period: float) -> int:
-        """Pick the mixer level that drives the cycle period toward ``target_period``.
-
-        Feed-forward to the discrete level whose natural period is closest to the
-        target, then trim ±1 against the live period: too slow (period too long)
-        ⇒ mix harder, too fast ⇒ ease off. The trim absorbs stir→period model error.
-        """
-        base = min(range(4), key=lambda lvl: abs(_LEVEL_PERIOD[lvl] - target_period))
-        if measured_period > 0.0:
-            err = (measured_period - target_period) / target_period
-            if err > self.period_tol:
-                base += 1
-            elif err < -self.period_tol:
-                base -= 1
-        return max(0, min(3, base))
+        return self._decision(2, glucose, c)
 
     def _mixer_from_correction(self, x: float) -> int:
         if x >= self.fast_thresh:

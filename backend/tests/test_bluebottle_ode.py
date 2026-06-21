@@ -1,5 +1,5 @@
 from backend.control.mpc_controller import MPCController
-from backend.estimator.state_estimator import CleanState
+from backend.estimator.state_estimator import MIXER_PWM, CleanState
 from backend.sim.bluebottle_ode import DEFAULT_PARAMS, blue_of, initial_state, rk4_step
 from backend.sim.rollout import blue_at, rollout
 
@@ -43,9 +43,8 @@ def test_glucose_pulse_pushes_colourless():
 def test_mpc_returns_valid_action():
     mpc = MPCController()
     a = mpc.decide(_clean(goal_blue=0.7, time_remaining=30.0))
-    mixer, glu, naoh = a
-    assert mixer in (0, 1, 2, 3)
-    assert isinstance(glu, bool) and isinstance(naoh, bool)
+    assert a.stirrer in MIXER_PWM.values()
+    assert isinstance(a.glucose, bool) and isinstance(a.naoh, bool)
 
 
 def test_mpc_prefers_more_stirring_for_a_bluer_goal():
@@ -53,7 +52,7 @@ def test_mpc_prefers_more_stirring_for_a_bluer_goal():
     low = mpc.decide(_clean(goal_blue=0.15, time_remaining=40.0, blue_level=0.5))
     mpc.reset()
     high = mpc.decide(_clean(goal_blue=0.95, time_remaining=40.0, blue_level=0.5))
-    assert high[0] >= low[0]
+    assert high.stirrer >= low.stirrer
 
 
 def test_blue_of_is_clamped():

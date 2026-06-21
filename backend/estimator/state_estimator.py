@@ -13,8 +13,10 @@ import math
 from backend.analysis.signal import clamp
 from backend.control.model import ReactionState
 
-# Stirrer PWM → discrete mixer level (off/low/mid/high). Boundaries are the
-# midpoints of the PWM table used by GoalModel ({0:0, 1:90, 2:160, 3:255}).
+# Discrete mixer level (off/low/mid/high) ⇄ stirrer PWM. This is the single
+# definition of the discrete-mixer mapping, shared by the discrete (hue/MPC)
+# controllers and the estimator's one-hot. `_MIXER_BOUNDS` are the midpoints.
+MIXER_PWM = {0: 0, 1: 90, 2: 160, 3: 255}
 _MIXER_BOUNDS = (45, 125, 207)
 
 
@@ -30,15 +32,15 @@ def mixer_level_of(pwm: int) -> int:
 class CleanState:
     """Normalized, dimensionless state handed to a controller.
 
-    ``goal_blue`` / ``time_remaining`` / ``target_period`` are filled by the
-    owning ``GoalModel`` (``None`` until an operator sets them)."""
+    ``goal_blue`` / ``time_remaining`` are filled by the owning ``GoalModel``
+    (``None`` until an operator sets a hue goal)."""
     t: float                      # seconds since run start (run clock)
     blue_level: float             # EMA-smoothed blue, 0..1
     baseline: float               # slow midline of the oscillation, 0..1
     amplitude: float              # smoothed peak-to-peak amplitude, 0..1
     phase_angle: float            # radians 0..2π; 0 = trough (colourless), π = peak (blue)
     phase: str                    # 'blue' | 'colorless' (passthrough)
-    period: float                 # seconds; 0 until known
+    period: float                 # seconds; EMA-smoothed full-cycle period, 0 until known
     period_norm: float            # period / nominal_period
     stall_risk: float             # 0..1 — time since last observed cycle / horizon
     cycle_event: bool             # passthrough: a full cycle just completed
@@ -46,7 +48,6 @@ class CleanState:
     mixer_onehot: tuple           # (off, low, mid, high) ∈ {0,1}
     goal_blue: float | None = None
     time_remaining: float | None = None
-    target_period: float | None = None    # desired full-cycle period (s); locks cadence
 
 
 class StateEstimator:
@@ -55,12 +56,14 @@ class StateEstimator:
         blue_alpha: float = 0.05,      # EMA on blue ≈ 1 s window at 20 Hz (mean lag ≈ (1-α)/α ≈ 19 samples)
         amp_alpha: float = 0.3,
         baseline_alpha: float = 0.01,  # slow midline tracker
+        period_alpha: float = 0.3,     # EMA on the detector's period — de-jitter for the controllers
         nominal_period: float = 20.0,
         stall_horizon: float = 90.0,   # matches device.py stall_risk horizon
     ):
         self.blue_alpha = blue_alpha
         self.amp_alpha = amp_alpha
         self.baseline_alpha = baseline_alpha
+        self.period_alpha = period_alpha
         self.nominal_period = nominal_period
         self.stall_horizon = stall_horizon
         self.reset()
@@ -69,6 +72,7 @@ class StateEstimator:
         self._blue_ema: float | None = None
         self._baseline: float | None = None
         self._amp_ema: float = 0.0
+        self._period_ema: float = 0.0
         self._phase: float = 0.0
         self._prev_t: float | None = None
         self._last_extreme_t: float | None = None
@@ -92,14 +96,20 @@ class StateEstimator:
             self._blue_ema += self.blue_alpha * (s.blue - self._blue_ema)
             self._baseline += self.baseline_alpha * (self._blue_ema - self._baseline)
 
-        # Amplitude EMA — only fold in real detector readings (>0).
+        # Amplitude + period EMAs — only fold in real detector readings (>0).
         if s.amp > 0.0:
             self._amp_ema += self.amp_alpha * (s.amp - self._amp_ema)
+        if s.period > 0.0:
+            self._period_ema = (
+                s.period if self._period_ema <= 0.0
+                else self._period_ema + self.period_alpha * (s.period - self._period_ema)
+            )
+        period = self._period_ema
 
         # Continuous phase: advance by the oscillator's angular rate, snap to a
         # trough on each detected cycle so it can never drift past reality.
-        if s.period > 0.0:
-            self._phase += (2.0 * math.pi / s.period) * dt
+        if period > 0.0:
+            self._phase += (2.0 * math.pi / period) * dt
         if s.cycle_event:
             self._phase = 0.0
             self._last_extreme_t = s.t
@@ -119,8 +129,8 @@ class StateEstimator:
             amplitude=clamp(self._amp_ema, 0.0, 1.0),
             phase_angle=self._phase,
             phase=s.phase,
-            period=s.period,
-            period_norm=(s.period / self.nominal_period) if s.period > 0 else 0.0,
+            period=period,
+            period_norm=(period / self.nominal_period) if period > 0 else 0.0,
             stall_risk=stall,
             cycle_event=s.cycle_event,
             mixer_level=level,
