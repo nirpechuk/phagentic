@@ -1,0 +1,156 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>PHAGENTIC — System Architecture</title>
+<style>
+  html,body{margin:0;background:#ffffff;font-family:'Helvetica Neue',Arial,sans-serif;color:#1f242a;}
+  .wrap{max-width:1740px;margin:0 auto;padding:28px 20px 40px;}
+  h1{font-weight:600;font-style:italic;letter-spacing:.5px;font-size:26px;margin:4px 0 2px;}
+  .sub{font-family:ui-monospace,Menlo,monospace;color:#6b7280;font-size:14px;margin-bottom:14px;}
+  svg{width:100%;height:auto;display:block;}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <h1>Phagentic — System Architecture</h1>
+  <div class="sub">closed-loop controller for the Blue Bottle oscillating reaction · hardware → backend → web console + agent</div>
+
+  <svg viewBox="0 0 1700 1180" xmlns="http://www.w3.org/2000/svg">
+    <defs>
+      <marker id="arr" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7.5" markerHeight="7.5" orient="auto-start-reverse">
+        <path d="M0,0 L10,5 L0,10 z" fill="#9aa0a6"/>
+      </marker>
+      <marker id="arrL" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7.5" markerHeight="7.5" orient="auto-start-reverse">
+        <path d="M0,0 L10,5 L0,10 z" fill="#c2b48a"/>
+      </marker>
+      <style>
+        .box{fill:#f7f8f9;stroke:#2b3036;stroke-width:2.5;}
+        .shadow{fill:#e7e9ea;}
+        .title{font-style:italic;font-weight:600;font-size:25px;fill:#1f242a;letter-spacing:.5px;}
+        .ttl-lg{font-style:italic;font-weight:600;font-size:30px;fill:#1f242a;letter-spacing:.5px;}
+        .icon{font-size:30px;}
+        .icon-lg{font-size:38px;}
+        .sub{font-family:ui-monospace,Menlo,monospace;font-size:14px;fill:#6b7280;}
+        .edge{stroke:#9aa0a6;stroke-width:2.6;fill:none;}
+        .edge-d{stroke:#9aa0a6;stroke-width:2.6;fill:none;stroke-dasharray:8 7;}
+        .edge-loop{stroke:#c2b48a;stroke-width:2.6;fill:none;}
+        .elabel{font-family:ui-monospace,Menlo,monospace;font-size:14px;fill:#6b7280;}
+        .elabel-loop{font-family:ui-monospace,Menlo,monospace;font-size:14px;fill:#9a8a55;}
+      </style>
+    </defs>
+
+    <!-- ===================== EDGES (drawn first, behind boxes) ===================== -->
+
+    <!-- control models -> backend -->
+    <path class="edge" d="M1090,270 L1090,470" marker-end="url(#arr)"/>
+    <text class="elabel" x="1104" y="375">observe → action</text>
+
+    <!-- frontend <-> backend -->
+    <path class="edge" d="M500,580 L900,580" marker-start="url(#arr)" marker-end="url(#arr)"/>
+    <text class="elabel" x="700" y="565" text-anchor="middle">WebSocket :8080 · state @15 Hz</text>
+
+    <!-- frontend <-> ask phage -->
+    <path class="edge" d="M260,470 L260,270" marker-start="url(#arr)" marker-end="url(#arr)"/>
+    <text class="elabel" x="276" y="375">question + live state</text>
+
+    <!-- ask phage -> anthropic -->
+    <path class="edge" d="M440,195 L480,195" marker-end="url(#arr)"/>
+
+    <!-- backend <-> esp32 (BLE) -->
+    <path class="edge-d" d="M1090,690 L1090,800" marker-start="url(#arr)" marker-end="url(#arr)"/>
+    <text class="elabel" x="1104" y="752">BLE · Nordic UART (JSON)</text>
+
+    <!-- sensor -> esp32 -->
+    <path class="edge" d="M900,870 L960,870" marker-end="url(#arr)"/>
+    <text class="elabel" x="930" y="855" text-anchor="middle">I²C</text>
+
+    <!-- esp32 -> actuators -->
+    <path class="edge" d="M1220,870 L1300,870" marker-end="url(#arr)"/>
+    <text class="elabel" x="1260" y="855" text-anchor="middle">PWM / digital</text>
+
+    <!-- vessel -> sensor (reflected colour) -->
+    <path class="edge-loop" d="M905,1006 L795,942" marker-end="url(#arrL)"/>
+    <text class="elabel-loop" x="815" y="1002">reflected colour</text>
+
+    <!-- actuators -> vessel (stir / dose) -->
+    <path class="edge-loop" d="M1465,945 L1305,1004" marker-end="url(#arrL)"/>
+    <text class="elabel-loop" x="1352" y="996">stir · O₂ · dose</text>
+
+    <!-- ===================== BOXES ===================== -->
+
+    <!-- ASK PHAGE AGENT -->
+    <rect class="box" x="80" y="120" width="360" height="150" rx="20"/>
+    <text class="icon" x="116" y="205">🤖</text>
+    <text class="title" x="158" y="190">ASK PHAGE</text>
+    <text class="sub" x="158" y="218">Claude · read-only assistant</text>
+
+    <!-- ANTHROPIC -->
+    <rect class="box" x="480" y="120" width="300" height="150" rx="20"/>
+    <text class="icon" x="514" y="205">🧠</text>
+    <text class="title" x="556" y="190">ANTHROPIC</text>
+    <text class="sub" x="556" y="218">Claude Haiku 4.5 · stream</text>
+
+    <!-- CONTROL MODELS -->
+    <rect class="box" x="900" y="120" width="380" height="150" rx="20"/>
+    <text class="icon" x="936" y="205">📈</text>
+    <text class="title" x="978" y="190">CONTROL MODELS</text>
+    <text class="sub" x="978" y="218">PI baseline · goal-seeking ML</text>
+
+    <!-- FRONTEND (stacked card) -->
+    <rect class="shadow" x="92" y="482" width="420" height="220" rx="22"/>
+    <rect class="box" x="80" y="470" width="420" height="220" rx="22"/>
+    <text class="icon-lg" x="120" y="595">🖥️</text>
+    <text class="ttl-lg" x="178" y="575">FRONTEND</text>
+    <text class="sub" x="180" y="608">React (vendored) · JavaScript</text>
+    <text class="sub" x="180" y="630">thin WebSocket client · build.js widgets</text>
+    <text class="sub" x="180" y="652">draggable glass console</text>
+
+    <!-- BACKEND (stacked card) -->
+    <rect class="shadow" x="912" y="482" width="380" height="220" rx="22"/>
+    <rect class="box" x="900" y="470" width="380" height="220" rx="22"/>
+    <text class="icon-lg" x="938" y="595">🐍</text>
+    <text class="ttl-lg" x="996" y="575">BACKEND</text>
+    <text class="sub" x="998" y="608">Python · FastAPI · uvicorn · bleak</text>
+    <text class="sub" x="998" y="630">DeviceWorker (20 Hz loop)</text>
+    <text class="sub" x="998" y="652">oscillation analysis · control loop</text>
+
+    <!-- ESP32 -->
+    <rect class="box" x="960" y="800" width="260" height="140" rx="20"/>
+    <text class="icon" x="996" y="882">📟</text>
+    <text class="title" x="1038" y="868">ESP32</text>
+    <text class="sub" x="1038" y="896">Arduino firmware</text>
+
+    <!-- TCS34725 SENSOR -->
+    <rect class="box" x="600" y="800" width="300" height="140" rx="20"/>
+    <text class="icon" x="636" y="882">🌈</text>
+    <text class="title" x="678" y="868">TCS34725</text>
+    <text class="sub" x="678" y="896">RGB colour sensor · I²C</text>
+
+    <!-- ACTUATORS -->
+    <rect class="box" x="1300" y="795" width="330" height="150" rx="20"/>
+    <text class="icon" x="1336" y="880">⚙️</text>
+    <text class="title" x="1378" y="862">ACTUATORS</text>
+    <text class="sub" x="1378" y="890">stirrer · glucose · NaOH · LED</text>
+    <text class="sub" x="1378" y="912">MOSFETs (PWM / digital)</text>
+
+    <!-- BLUE BOTTLE VESSEL -->
+    <rect class="box" x="860" y="1000" width="460" height="120" rx="20"/>
+    <text class="icon-lg" x="900" y="1072">🧪</text>
+    <text class="title" x="958" y="1052">BLUE BOTTLE VESSEL</text>
+    <text class="sub" x="960" y="1082">glucose · NaOH · methylene blue (oscillating redox)</text>
+
+    <!-- legend -->
+    <g transform="translate(80,1000)">
+      <line class="edge" x1="0" y1="20" x2="46" y2="20" marker-end="url(#arr)"/>
+      <text class="elabel" x="56" y="25">data flow</text>
+      <line class="edge-d" x1="0" y1="50" x2="46" y2="50" marker-end="url(#arr)"/>
+      <text class="elabel" x="56" y="55">wireless (BLE)</text>
+      <line class="edge-loop" x1="0" y1="80" x2="46" y2="80" marker-end="url(#arrL)"/>
+      <text class="elabel-loop" x="56" y="85">physical / chemical</text>
+    </g>
+
+  </svg>
+</div>
+</body>
+</html>
