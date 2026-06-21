@@ -39,30 +39,7 @@ phagentic/
 
 ## Architecture
 
-```
-Browser (thin client)  ──WebSocket──►  backend/  (FastAPI + uvicorn, :8080)
-  renders state                          • /ws: streams full state ~15 Hz, accepts commands
-  sends commands                         • GET /config: hardware layout + roles + models
-                                              │ shared StateStore / command queue / events
-                                              ▼
-                         DeviceWorker thread — the only thread touching the device
-                           20 Hz loop: read sensor → analyse → model decides → actuate
-                                              │ (reuses hub/ controller + BLE transport)
-                                              ▼
-                                ESP32 (controller/) over BLE — Nordic UART Service
-```
-
-Three modes, one active controller at a time:
-
-- **manual** — the UI drives actuators directly.
-- **auto** — the built-in PI controller (PI on the stirrer to hold a target
-  half-period + a glucose pulse when amplitude decays).
-- **ml** — a pluggable `Model` from `backend/control/registry.py` drives. The
-  baseline (`pi_baseline`) is the auto controller wrapped as a model; add your
-  own by implementing `observe(state) -> Action` and registering it.
-
-The model is itself controllable from the UI (mode, model selection, and tunable
-params like `target_half_period` / `amp_threshold` / `glucose_dose_ms`).
+<img width="1245" height="764" alt="Architecture" src="https://github.com/user-attachments/assets/34d81900-0187-47e0-bde2-d6daf9978507" />
 
 ## WebSocket protocol (`ws://<host>:8080/ws`)
 
